@@ -1,70 +1,76 @@
 import logging
 from typing import Any
 
-from deepbsv.block.template import BlockTemplate, MiningJob
+from deepbsv.block.template import BlockTemplate
 from deepbsv.stratum.server import StratumServer
 
 logger = logging.getLogger(__name__)
 
 
 class MiningEngine:
-    """Zentrale Orchestrierung von Stratum Server und Work Broadcasting."""
+    """Verwaltet Mining-Jobs und orchestriert die Verteilung an Stratum-Sessions."""
 
     def __init__(self, stratum_server: StratumServer) -> None:
-        self.server = stratum_server
-        self._current_job_id: int = 0
-        self._current_job: MiningJob | None = None
+        self.stratum_server = stratum_server
+        self.current_job_id = 0
 
     def create_job_from_template(
         self, template: BlockTemplate, clean_jobs: bool = True
-    ) -> MiningJob:
-        """Erstellt einen fortlaufenden MiningJob aus einem BlockTemplate."""
-        self._current_job_id += 1
-        job_id = f"{self._current_job_id:x}"
+    ) -> dict[str, Any]:
+        """Erstellt ein Stratum-Job-Diktionär aus einem BlockTemplate."""
+        self.current_job_id += 1
+        job_id = f"{self.current_job_id:x}"
 
-        # standardisierte Dummy-Coinbase-Endpunkte für Stratum
-        coinb1 = "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff"
-        coinb2 = "ffffffff"
+        # Standardwerte oder aus Template abgeleitete Daten
+        job_data = {
+            "job_id": job_id,
+            "prev_hash": template.prev_block_hash,
+            "coinbase_1": getattr(template, "coinbase_1", ""),
+            "coinbase_2": getattr(template, "coinbase_2", ""),
+            "merkle_branches": getattr(template, "merkle_branches", []),
+            "version": template.version,
+            "nbits": template.nbits,
+            "ntime": getattr(template, "ntime", 0),
+            "clean_jobs": clean_jobs,
+        }
 
-        job = template.create_job(
-            job_id=job_id,
-            coinb1_hex=coinb1,
-            coinb2_hex=coinb2,
-            clean_jobs=clean_jobs,
-        )
-        self._current_job = job
-        return job
+        # Direkt auf StratumServer registrieren
+        self.stratum_server.register_job(job_id, job_data)
+        return job_data
 
-    async def broadcast_job(self, job: MiningJob) -> int:
-        """Sendet `mining.notify` an alle verbundenen und autorisierten Stratum-Sessions."""
-        notify_msg = self.server.handler.create_notification(
-            "mining.notify", job.to_notify_params()
-        )
-        payload = (
-            self._serialize_notification(notify_msg)
-            if hasattr(self, "_serialize_notification")
-            else None
-        )
+    async def broadcast_job(self, job_data: dict[str, Any]) -> None:
+        """Sendet den neuen Job via mining.notify an alle aktiven & autorisierten Miner."""
+        job_id = job_data["job_id"]
+        params = [
+            job_id,
+            job_data["prev_hash"],
+            job_data["coinbase_1"],
+            job_data["coinbase_2"],
+            job_data["merkle_branches"],
+            f"{job_data['version']:08x}",
+            f"{job_data['nbits']:08x}",
+            f"{job_data['ntime']:08x}",
+            job_data["clean_jobs"],
+        ]
 
-        if payload is None:
-            import json
+        count = 0
+        for session in list(self.stratum_server.sessions.values()):
+            # Abfrage über subscribed und authorized_worker
+            if session.subscribed and session.authorized_worker is not None:
+                await session.send_response(
+                    result=None,
+                    error=None,
+                    msg_id=None,
+                )
+                # Alternativ: Benachrichtigung via mining.notify als Notification senden
+                payload = {
+                    "id": None,
+                    "method": "mining.notify",
+                    "params": params,
+                }
+                import json
+                session.writer.write((json.dumps(payload) + "\n").encode("utf-8"))
+                await session.writer.drain()
+                count += 1
 
-            payload = json.dumps(notify_msg) + "\n"
-
-        sent_count = 0
-        for session in list(self.server.sessions.values()):
-            if session.is_subscribed and session.is_authorized:
-                sent_count += 1
-
-        logger.info(
-            "Mining Job %s an %d aktive Miner ge-broadcastet.",
-            job.job_id,
-            sent_count,
-        )
-        return sent_count
-
-    @staticmethod
-    def _serialize_notification(msg: dict[str, Any]) -> str:
-        import json
-
-        return json.dumps(msg) + "\n"
+        logger.info("Job %s an %d Miner verteilt.", job_id, count)

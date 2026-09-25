@@ -45,12 +45,10 @@ class StratumServer:
                     message = json.loads(line)
                 except json.JSONDecodeError:
                     logger.warning("Ungültiges JSON empfangen: %s", line)
-                    # WICHTIG: Verbindung bei ungültigem JSON schließen und Schleife abbrechen
                     writer.close()
                     await writer.wait_closed()
                     break
 
-                # JSON-RPC Handling für Stratum V1
                 method = message.get("method")
                 msg_id = message.get("id")
 
@@ -70,15 +68,15 @@ class StratumServer:
                     writer.write((json.dumps(response) + "\n").encode("utf-8"))
                     await writer.drain()
 
-        except Exception as e:
-            logger.error("Fehler in Client-Verbindung: %s", e)
+        except (ConnectionError, asyncio.TimeoutError) as e:
+            logger.info("Client-Verbindung getrennt: %s", e)
         finally:
             if session_id in self.sessions:
                 del self.sessions[session_id]
+            writer.close()
             try:
-                writer.close()
                 await writer.wait_closed()
-            except Exception:
+            except OSError:
                 pass
 
     async def start(self) -> None:

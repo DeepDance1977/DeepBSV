@@ -53,7 +53,7 @@ class MiningEngine:
     ) -> MiningJob:
         """Erstellt ein Stratum-Job-Objekt aus einem BlockTemplate."""
         self.current_job_id += 1
-        job_id = f"{self.current_job_id:x}"
+        job_id = str(self.current_job_id)
 
         job_data = {
             "job_id": job_id,

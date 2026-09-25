@@ -60,7 +60,7 @@ class BSVNodeRPCClient:
 
             return data.get("result")
 
-    async def get_mining_candidate() -> dict[str, Any]:
+    async def get_mining_candidate(self) -> dict[str, Any]:
         """Ruft einen neuen Mining Candidate ab (optimal für Pruned Nodes)."""
         result = await self._call("getminingcandidate")
         if not isinstance(result, dict):

@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +13,11 @@ class StratumServer:
     def __init__(self, host: str, port: int) -> None:
         self.host = host
         self.port = port
-        self._server: Optional[asyncio.Server] = None
+        self._server: asyncio.Server | None = None
         self.active_connections = 0
-        self.start_time: Optional[float] = None
+        self.start_time: float | None = None
         self._is_running = False
-        self._jobs: Dict[str, Dict[str, Any]] = {}
+        self._jobs: dict[str, dict[str, Any]] = {}
 
     async def start(self) -> None:
         """Startet den TCP-Stratum-Server."""
@@ -42,7 +42,7 @@ class StratumServer:
             self._server = None
         logger.info("StratumServer gestoppt.")
 
-    def register_job(self, job_id: str, job_data: Dict[str, Any]) -> None:
+    def register_job(self, job_id: str, job_data: dict[str, Any]) -> None:
         """Registriert einen neuen Mining-Job im Server."""
         self._jobs[job_id] = job_data
         logger.info("Job %s erfolgreich im Server registriert.", job_id)
@@ -103,7 +103,7 @@ class StratumServer:
             writer.close()
             await writer.wait_closed()
 
-    def get_health_status(self) -> Dict[str, Any]:
+    def get_health_status(self) -> dict[str, Any]:
         """Gibt den aktuellen Gesundheits- und Metrikstatus des Servers zurück."""
         uptime = time.time() - self.start_time if self.start_time else 0.0
         return {

@@ -37,7 +37,18 @@ async def main() -> None:
 
     async def on_new_candidate(candidate: MiningCandidate) -> None:
         logger.info("Neuer Mining Candidate empfangen: %s", candidate.id)
-        template = BlockTemplate(candidate)
+        
+        # Erzeuge BlockTemplate aus den Attributen von MiningCandidate
+        template = BlockTemplate(
+            height=candidate.height,
+            prev_block_hash=candidate.prev_hash,
+            coinbase_tx1=candidate.coinb1,
+            coinbase_tx2=candidate.coinb2,
+            merkle_branches=candidate.merkle_proof,
+            version=candidate.version,
+            bits=candidate.bits,
+            time=candidate.time,
+        )
         job = engine.create_job_from_template(template, clean_jobs=True)
         await engine.broadcast_job(job)
 

@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any
 
@@ -21,7 +22,6 @@ class MiningEngine:
         self.current_job_id += 1
         job_id = f"{self.current_job_id:x}"
 
-        # Standardwerte oder aus Template abgeleitete Daten
         job_data = {
             "job_id": job_id,
             "prev_hash": template.prev_block_hash,
@@ -34,7 +34,6 @@ class MiningEngine:
             "clean_jobs": clean_jobs,
         }
 
-        # Direkt auf StratumServer registrieren
         self.stratum_server.register_job(job_id, job_data)
         return job_data
 
@@ -53,23 +52,17 @@ class MiningEngine:
             job_data["clean_jobs"],
         ]
 
+        payload = {
+            "id": None,
+            "method": "mining.notify",
+            "params": params,
+        }
+        data = (json.dumps(payload) + "\n").encode("utf-8")
+
         count = 0
         for session in list(self.stratum_server.sessions.values()):
-            # Abfrage über subscribed und authorized_worker
             if session.subscribed and session.authorized_worker is not None:
-                await session.send_response(
-                    result=None,
-                    error=None,
-                    msg_id=None,
-                )
-                # Alternativ: Benachrichtigung via mining.notify als Notification senden
-                payload = {
-                    "id": None,
-                    "method": "mining.notify",
-                    "params": params,
-                }
-                import json
-                session.writer.write((json.dumps(payload) + "\n").encode("utf-8"))
+                session.writer.write(data)
                 await session.writer.drain()
                 count += 1
 

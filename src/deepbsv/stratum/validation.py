@@ -1,7 +1,6 @@
 import hashlib
-import struct
 import logging
-from typing import Tuple
+import struct
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +41,7 @@ def reconstruct_coinbase(
 
 
 def calculate_merkle_root(coinbase_hash: bytes, merkle_branches: list[str]) -> bytes:
-    """
-    Berechnet die Merkle-Root aus dem Coinbase-Hash und den Merkle-Branches.
-    
-    Jeder Branch in merkle_branches ist als Hex-String in Big-Endian/Little-Endian angegeben.
-    """
+    """Berechnet die Merkle-Root aus dem Coinbase-Hash und den Merkle-Branches."""
     current_hash = coinbase_hash
     for branch_hex in merkle_branches:
         branch = bytes.fromhex(branch_hex)
@@ -62,17 +57,7 @@ def build_block_header(
     nbits: int,
     nonce: int,
 ) -> bytes:
-    """
-    Konstruiert den 80-Byte Bitcoin-Blockheader im Little-Endian-Format.
-    
-    Header-Struktur (80 Bytes):
-    - Version (4 Bytes)
-    - Prev Block Hash (32 Bytes, reverses Byte-Ordering)
-    - Merkle Root (32 Bytes)
-    - Timestamp / nTime (4 Bytes)
-    - Bits / nBits (4 Bytes)
-    - Nonce (4 Bytes)
-    """
+    """Konstruiert den 80-Byte Bitcoin-Blockheader im Little-Endian-Format."""
     version_bytes = struct.pack("<I", version)
     prev_hash_bytes = bytes.fromhex(prev_block_hash_hex)[::-1]
     ntime_bytes = struct.pack("<I", ntime)
@@ -87,25 +72,21 @@ def build_block_header(
         + nbits_bytes
         + nonce_bytes
     )
-    
+
     if len(header) != 80:
-        raise ValueError(f"Ungültige Block-Header-Länge: {len(header)} Bytes (erwartet: 80)")
-        
+        raise ValueError(
+            f"Ungültige Block-Header-Länge: {len(header)} Bytes (erwartet: 80)"
+        )
+
     return header
 
 
 def validate_share(
     header_bytes: bytes,
     target: int,
-) -> Tuple[bool, str, int]:
-    """
-    Prüft, ob der Double-SHA256 Hash des Headers unter dem Target liegt.
-    
-    Gibt ein Tupel zurück:
-    (is_valid, hash_hex, hash_int)
-    """
+) -> tuple[bool, str, int]:
+    """Prüft, ob der Double-SHA256 Hash des Headers unter dem Target liegt."""
     block_hash_bytes = double_sha256(header_bytes)
-    # Der Hash wird in Little-Endian umgekehrt, um die numerische Größe zu bestimmen
     hash_int = int.from_bytes(block_hash_bytes[::-1], byteorder="big")
     hash_hex = block_hash_bytes[::-1].hex()
 

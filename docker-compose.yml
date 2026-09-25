@@ -1,11 +1,17 @@
 version: '3.8'
 
 services:
-  deepbsv:
+  api:
     build: .
-    container_name: deepbsv_node
+    container_name: deepbsv-api
+    restart: unless-stopped
     ports:
-      - "3333:3333"
+      - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
-    restart: unless-stopped
+    networks:
+      - deepbsv-net
+
+networks:
+  deepbsv-net:
+    driver: bridge

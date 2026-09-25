@@ -39,3 +39,7 @@ target-version = "py311"
 python_version = "3.11"
 strict = true
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "deepbsv.api.*"
+disallow_untyped_decorators = false

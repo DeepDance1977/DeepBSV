@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import logging
 from typing import Any
@@ -89,7 +90,7 @@ class StratumServer:
                 await self._process_message(session, line.decode("utf-8").strip())
         except asyncio.CancelledError:
             pass
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error("Fehler in Session %s: %s", session_id, e)
         finally:
             self.sessions.pop(session_id, None)
@@ -146,8 +147,8 @@ class StratumServer:
     async def _handle_submit(
         self, session: StratumSession, params: list[Any], msg_id: Any
     ) -> None:
-        """
-        Verarbeitet die Einreichung einer Nonce durch einen Miner (mining.submit).
+        """Verarbeitet die Einreichung einer Nonce durch einen Miner (mining.submit).
+
         Params Format: [worker_name, job_id, extranonce2, ntime, nonce]
         """
         if len(params) < 5:
@@ -180,8 +181,6 @@ class StratumServer:
             )
 
             # 3. Coinbase-Hash berechnen (Double-SHA256)
-            import hashlib
-
             cb_hash = hashlib.sha256(hashlib.sha256(coinbase_bytes).digest()).digest()
 
             # 4. Merkle-Root berechnen
@@ -207,7 +206,9 @@ class StratumServer:
                     session.authorized_worker,
                 )
                 await session.send_response(
-                    False, error=[23, "Share erfüllt Difficulty nicht", None], msg_id=msg_id
+                    False,
+                    error=[23, "Share erfüllt Difficulty nicht", None],
+                    msg_id=msg_id,
                 )
                 return
 
@@ -223,7 +224,7 @@ class StratumServer:
 
             await session.send_response(True, msg_id=msg_id)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error("Fehler bei der Validierung des Shares: %s", e)
             await session.send_response(
                 False, error=[20, f"Validierungsfehler: {e}", None], msg_id=msg_id

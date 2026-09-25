@@ -1,6 +1,6 @@
-from collections.abc import Callable
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ class StratumProtocolHandler:
             if not isinstance(data, dict):
                 raise TypeError("Payload muss ein JSON-Objekt sein.")
             return data
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise StratumError(-32700, f"Parse error: {e!s}") from e
 
     def handle_request(
@@ -82,8 +82,8 @@ class StratumProtocolHandler:
             return self.create_success_response(msg_id, result)
         except StratumError as se:
             return self.create_error_response(msg_id, se.code, se.message, se.data)
-        except Exception as e:  # noqa: BLE001
-            logger.exception("Unerwarteter Fehler bei Methode %s: %s", method, e)
+        except Exception:
+            logger.exception("Unerwarteter Fehler bei Methode %s", method)
             return self.create_error_response(msg_id, -32603, "Internal error")
 
     def create_success_response(self, msg_id: Any, result: Any) -> dict[str, Any]:

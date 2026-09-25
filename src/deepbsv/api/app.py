@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -75,7 +76,6 @@ async def websocket_metrics_endpoint(websocket: WebSocket) -> None:
     await manager.connect(websocket)
     try:
         while True:
-            # Wir halten die Verbindung offen und lauschen auf eventuelle Client-Nachrichten (z.B. Ping)
             data = await websocket.receive_text()
             if data == "ping":
                 await websocket.send_text("pong")

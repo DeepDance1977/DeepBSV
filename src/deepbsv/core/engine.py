@@ -8,30 +8,31 @@ logger = logging.getLogger(__name__)
 
 
 class MiningJob:
-    """Repräsentiert einen Mining-Job mit Attribut-Zugriff für Tests."""
+    """Repräsentiert einen Mining-Job mit exakter Stratum V1 Parameter-Struktur."""
 
     def __init__(self, job_data: dict[str, Any]) -> None:
         self._data = job_data
 
     @property
     def job_id(self) -> str:
-        return str(self._data["job_id"])
+        return str(self._data.get("job_id", ""))
 
     @property
     def clean_jobs(self) -> bool:
-        return bool(self._data["clean_jobs"])
+        return bool(self._data.get("clean_jobs", True))
 
     def to_notify_params(self) -> list[Any]:
+        """Gibt exakt die 9 für mining.notify benötigten Parameter zurück."""
         return [
-            self._data["job_id"],
+            self.job_id,
             self._data.get("prev_hash", ""),
             self._data.get("coinbase_1", ""),
             self._data.get("coinbase_2", ""),
             self._data.get("merkle_branches", []),
-            f"{int(self._data.get('version', 1)):08x}",
-            f"{int(self._data.get('nbits', 0x1D00FFFF)):08x}",
-            f"{int(self._data.get('ntime', 0)):08x}",
-            self._data["clean_jobs"],
+            self._data.get("version", "00000001"),
+            self._data.get("nbits", "1d00ffff"),
+            self._data.get("ntime", "00000000"),
+            self.clean_jobs,
         ]
 
     def __getitem__(self, key: str) -> Any:
@@ -51,25 +52,24 @@ class MiningEngine:
     def create_job_from_template(
         self, template: BlockTemplate, clean_jobs: bool = True
     ) -> MiningJob:
-        """Erstellt ein Stratum-Job-Objekt aus einem BlockTemplate mit Fallbacks."""
+        """Erstellt ein Stratum-Job-Objekt aus einem BlockTemplate."""
         self.current_job_id += 1
         job_id = str(self.current_job_id)
 
         job_data = {
             "job_id": job_id,
-            "prev_hash": getattr(template, "prev_block_hash", getattr(template, "previous_block_hash", getattr(template, "prevhash", ""))),
-            "coinbase_1": getattr(template, "coinbase_1", getattr(template, "coinbase1", "")),
-            "coinbase_2": getattr(template, "coinbase_2", getattr(template, "coinbase2", "")),
-            "merkle_branches": getattr(template, "merkle_branches", getattr(template, "merkle_branch", [])),
-            "version": getattr(template, "version", 1),
-            "nbits": getattr(template, "nbits", getattr(template, "bits", 0x1D00FFFF)),
-            "ntime": getattr(template, "ntime", getattr(template, "time", 0)),
+            "prev_hash": getattr(template, "prev_block_hash", getattr(template, "prevhash", "")),
+            "coinbase_1": getattr(template, "coinbase_1", ""),
+            "coinbase_2": getattr(template, "coinbase_2", ""),
+            "merkle_branches": getattr(template, "merkle_branches", []),
+            "version": getattr(template, "version", "00000001"),
+            "nbits": getattr(template, "nbits", "1d00ffff"),
+            "ntime": getattr(template, "ntime", "00000000"),
             "clean_jobs": clean_jobs,
         }
 
-        register_func = getattr(self.stratum_server, "register_job", None)
-        if callable(register_func):
-            register_func(job_id, job_data)
+        if hasattr(self.stratum_server, "register_job"):
+            self.stratum_server.register_job(job_id, job_data)
 
         return MiningJob(job_data)
 

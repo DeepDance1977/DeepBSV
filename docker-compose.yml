@@ -12,6 +12,19 @@ services:
     networks:
       - deepbsv-net
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: deepbsv-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    networks:
+      - deepbsv-net
+
 networks:
   deepbsv-net:
     driver: bridge

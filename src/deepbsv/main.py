@@ -41,12 +41,8 @@ async def main() -> None:
         template = BlockTemplate(
             height=candidate.height,
             prev_block_hash=candidate.prev_hash,
-            coinbase_1=candidate.coinbase_1,
-            coinbase_2=candidate.coinbase_2,
-            merkle_proof=candidate.merkle_proof,
             version=candidate.version,
             nbits=candidate.n_bits,
-            ntime=candidate.time,
         )
         job = engine.create_job_from_template(template, clean_jobs=True)
         await engine.broadcast_job(job)

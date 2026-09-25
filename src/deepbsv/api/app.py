@@ -41,7 +41,7 @@ async def get_system_status() -> SystemStatusResponse:
             current_height=0,
             hashrate=0.0,
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Fehler beim Abrufen des Systemstatus: %s", e)
         raise HTTPException(status_code=500, detail="Interner Serverfehler") from e
 

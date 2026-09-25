@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  deepbsv:
+    build: .
+    container_name: deepbsv_node
+    ports:
+      - "3333:3333"
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

@@ -10,7 +10,7 @@ from deepbsv.stratum.validation import (
 
 def test_double_sha256() -> None:
     data = b"hello world"
-    expected_hex = "bc62a933791176e336e16f731c3a50e50529124430f81d1134a6ef44b3602f23"
+    expected_hex = "bc62d4b80d9e36da29c16c5d4d9f11731f36052c72401a76c23c0fb5a9b74423"
     result = double_sha256(data)
     assert result.hex() == expected_hex
 

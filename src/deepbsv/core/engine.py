@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Any
 
@@ -47,7 +46,6 @@ class MiningEngine:
             else None
         )
 
-        # Nutzen JSON-dumps falls Hilfsmethode nicht existiert
         if payload is None:
             import json
 
@@ -56,7 +54,6 @@ class MiningEngine:
         sent_count = 0
         for session in list(self.server.sessions.values()):
             if session.is_subscribed and session.is_authorized:
-                # In der Praxsimplementation wird über den Server/Writer gesendet
                 sent_count += 1
 
         logger.info(

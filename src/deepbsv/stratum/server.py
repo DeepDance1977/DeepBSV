@@ -68,7 +68,7 @@ class StratumServer:
                     writer.write((json.dumps(response) + "\n").encode("utf-8"))
                     await writer.drain()
 
-        except (ConnectionError, asyncio.TimeoutError) as e:
+        except (TimeoutError, ConnectionError) as e:
             logger.info("Client-Verbindung getrennt: %s", e)
         finally:
             if session_id in self.sessions:

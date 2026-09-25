@@ -30,7 +30,6 @@ class SystemStatusResponse(BaseModel):
     hashrate: float
 
 
-# type: ignore[untyped-decorator]
 @app.get("/api/status", response_model=SystemStatusResponse)
 async def get_system_status() -> SystemStatusResponse:
     """Liefert den aktuellen System- und Mining-Status (greift passiv auf den Core zu)."""
@@ -47,7 +46,6 @@ async def get_system_status() -> SystemStatusResponse:
         raise HTTPException(status_code=500, detail="Interner Serverfehler") from e
 
 
-# type: ignore[untyped-decorator]
 @app.get("/api/health")
 async def health_check() -> dict[str, str]:
     """Einfacher Health-Check für Docker und Container-Monitoring."""

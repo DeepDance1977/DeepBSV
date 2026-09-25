@@ -1,4 +1,5 @@
 import logging
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -33,8 +34,6 @@ class SystemStatusResponse(BaseModel):
 async def get_system_status() -> SystemStatusResponse:
     """Liefert den aktuellen System- und Mining-Status (greift passiv auf den Core zu)."""
     try:
-        # Hier wird später der Status sicher aus der MiningEngine / dem State ausgelesen,
-        # ohne den Miningpfade zu blockieren.
         return SystemStatusResponse(
             status="running",
             node_connected=True,
@@ -42,9 +41,9 @@ async def get_system_status() -> SystemStatusResponse:
             current_height=0,
             hashrate=0.0,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("Fehler beim Abrufen des Systemstatus: %s", e)
-        raise HTTPException(status_code=500, detail="Interner Serverfehler")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler") from e
 
 
 @app.get("/api/health")

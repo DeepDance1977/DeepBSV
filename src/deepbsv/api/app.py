@@ -31,7 +31,7 @@ class SystemStatusResponse(BaseModel):
 
 
 @app.get("/api/status", response_model=SystemStatusResponse)
-async def get_system_status() -> SystemStatusResponse:
+async def get_system_status() -> SystemStatusResponse:  # type: ignore[untyped-decorator]
     """Liefert den aktuellen System- und Mining-Status (greift passiv auf den Core zu)."""
     try:
         return SystemStatusResponse(
@@ -47,6 +47,6 @@ async def get_system_status() -> SystemStatusResponse:
 
 
 @app.get("/api/health")
-async def health_check() -> dict[str, str]:
+async def health_check() -> dict[str, str]:  # type: ignore[untyped-decorator]
     """Einfacher Health-Check für Docker und Container-Monitoring."""
     return {"status": "ok"}

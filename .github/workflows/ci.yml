@@ -23,7 +23,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          pip install pytest-timeout ruff mypy
+          pip install pytest-timeout pytest-asyncio ruff mypy
 
       - name: Run ruff check
         run: ruff check .
@@ -32,4 +32,6 @@ jobs:
         run: mypy src
 
       - name: Run pytest with timeout
+        env:
+          PYTHONPATH: .
         run: pytest --timeout=30 -v

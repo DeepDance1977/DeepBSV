@@ -1,5 +1,5 @@
 import asyncio
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 import structlog
 
@@ -51,10 +51,10 @@ class CandidateManager:
         for callback in self._subscribers:
             try:
                 await callback(candidate)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(
                     "Error executing candidate subscriber callback",
-                    subscriber=callback.__name__,
+                    subscriber=getattr(callback, "__name__", str(callback)),
                     error=str(e),
                 )
 

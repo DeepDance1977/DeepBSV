@@ -49,7 +49,7 @@ class MiningEngine:
         self.current_job_id = 0
 
     def create_job_from_template(
-        self, template: Any, clean_jobs: bool = True
+        self, template: BlockTemplate, clean_jobs: bool = True
     ) -> MiningJob:
         """Erstellt ein Stratum-Job-Objekt aus einem BlockTemplate mit Fallbacks."""
         self.current_job_id += 1

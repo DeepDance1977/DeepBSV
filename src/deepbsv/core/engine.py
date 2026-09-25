@@ -28,9 +28,9 @@ class MiningJob:
             self._data.get("coinbase_1", ""),
             self._data.get("coinbase_2", ""),
             self._data.get("merkle_branches", []),
-            f"{self._data.get('version', 1):08x}",
-            f"{self._data.get('nbits', 0x1D00FFFF):08x}",
-            f"{self._data.get('ntime', 0):08x}",
+            f"{int(self._data.get('version', 1)):08x}",
+            f"{int(self._data.get('nbits', 0x1D00FFFF)):08x}",
+            f"{int(self._data.get('ntime', 0)):08x}",
             self._data["clean_jobs"],
         ]
 
@@ -49,21 +49,21 @@ class MiningEngine:
         self.current_job_id = 0
 
     def create_job_from_template(
-        self, template: BlockTemplate, clean_jobs: bool = True
+        self, template: Any, clean_jobs: bool = True
     ) -> MiningJob:
-        """Erstellt ein Stratum-Job-Objekt aus einem BlockTemplate."""
+        """Erstellt ein Stratum-Job-Objekt aus einem BlockTemplate mit Fallbacks."""
         self.current_job_id += 1
         job_id = str(self.current_job_id)
 
         job_data = {
             "job_id": job_id,
-            "prev_hash": getattr(template, "prev_block_hash", ""),
-            "coinbase_1": getattr(template, "coinbase_1", ""),
-            "coinbase_2": getattr(template, "coinbase_2", ""),
-            "merkle_branches": getattr(template, "merkle_branches", []),
+            "prev_hash": getattr(template, "prev_block_hash", getattr(template, "previous_block_hash", getattr(template, "prevhash", ""))),
+            "coinbase_1": getattr(template, "coinbase_1", getattr(template, "coinbase1", "")),
+            "coinbase_2": getattr(template, "coinbase_2", getattr(template, "coinbase2", "")),
+            "merkle_branches": getattr(template, "merkle_branches", getattr(template, "merkle_branch", [])),
             "version": getattr(template, "version", 1),
-            "nbits": getattr(template, "nbits", 0x1D00FFFF),
-            "ntime": getattr(template, "ntime", 0),
+            "nbits": getattr(template, "nbits", getattr(template, "bits", 0x1D00FFFF)),
+            "ntime": getattr(template, "ntime", getattr(template, "time", 0)),
             "clean_jobs": clean_jobs,
         }
 

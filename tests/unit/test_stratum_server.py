@@ -1,6 +1,8 @@
 import asyncio
 import json
+
 import pytest
+
 from deepbsv.stratum.server import StratumServer
 
 

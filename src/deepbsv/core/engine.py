@@ -72,10 +72,17 @@ class MiningEngine:
 
     async def broadcast_job(self, job: MiningJob | dict[str, Any]) -> int:
         """Sendet den neuen Job via mining.notify an alle aktiven & autorisierten Miner."""
-        job_id = job["job_id"] if isinstance(job, dict) else job.job_id
+        if isinstance(job, dict):
+            job_id = job.get("job_id", "")
+        else:
+            job_id = job.job_id
         
+        sessions = getattr(self.stratum_server, "sessions", {})
+        if not sessions:
+            return 0
+
         count = 0
-        for session in list(self.stratum_server.sessions.values()):
+        for session in list(sessions.values()):
             if (
                 getattr(session, "subscribed", False)
                 and getattr(session, "authorized_worker", None) is not None

@@ -67,7 +67,10 @@ class MiningEngine:
             "clean_jobs": clean_jobs,
         }
 
-        self.stratum_server.register_job(job_id, job_data)
+        register_func = getattr(self.stratum_server, "register_job", None)
+        if callable(register_func):
+            register_func(job_id, job_data)
+
         return MiningJob(job_data)
 
     async def broadcast_job(self, job: MiningJob | dict[str, Any]) -> int:

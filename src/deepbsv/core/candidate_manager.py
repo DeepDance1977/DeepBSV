@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 import structlog
 
 from deepbsv.models.candidate import MiningCandidate
-from deepbsv.rpc.client import BSVRPCClient
+from deepbsv.rpc.client import BSVNodeRPCClient
 from deepbsv.rpc.exceptions import BSVRPCError
 
 logger = structlog.get_logger()

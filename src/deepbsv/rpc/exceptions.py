@@ -1,19 +1,13 @@
 class BSVRPCError(Exception):
     """Base exception for all BSV RPC client errors."""
 
-    pass
-
 
 class BSVRPCConnectionError(BSVRPCError):
     """Raised when connection to the BSV node fails."""
 
-    pass
-
 
 class BSVRPCAuthenticationError(BSVRPCError):
     """Raised on invalid RPC credentials (401 Unauthorized)."""
-
-    pass
 
 
 class BSVRPCResponseError(BSVRPCError):

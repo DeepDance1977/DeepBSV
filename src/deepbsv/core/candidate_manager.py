@@ -40,7 +40,6 @@ class CandidateManager:
                 else raw_candidate
             )
 
-            # Prüfen, ob es sich um einen neuen Kandidaten handelt
             if (
                 self.current_candidate is None
                 or candidate.id != self.current_candidate.id
@@ -58,7 +57,7 @@ class CandidateManager:
         for callback in self._subscribers:
             try:
                 await callback(candidate)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error("Fehler im Candidate-Subscriber Callback: %s", e)
 
     async def start_polling(self) -> None:

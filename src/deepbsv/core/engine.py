@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import Any
 
@@ -40,21 +39,12 @@ class MiningEngine:
     async def broadcast_job(self, job_data: dict[str, Any]) -> None:
         """Sendet den neuen Job via mining.notify an alle aktiven & autorisierten Miner."""
         job_id = job_data["job_id"]
-        params = [
-            job_id,
-            job_data["prev_hash"],
-            job_data["coinbase_1"],
-            job_data["coinbase_2"],
-            job_data["merkle_branches"],
-            f"{job_data['version']:08x}",
-            f"{job_data['nbits']:08x}",
-            f"{job_data['ntime']:08x}",
-            job_data["clean_jobs"],
-        ]
-
         count = 0
         for session in list(self.stratum_server.sessions.values()):
-            if getattr(session, "subscribed", False) and getattr(session, "authorized_worker", None) is not None:
+            if (
+                getattr(session, "subscribed", False)
+                and getattr(session, "authorized_worker", None) is not None
+            ):
                 if hasattr(session, "send_response"):
                     await session.send_response(result=None, error=None, msg_id=None)
                 count += 1

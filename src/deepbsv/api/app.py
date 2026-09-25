@@ -1,15 +1,32 @@
 import logging
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from deepbsv.api.websocket import background_metrics_broadcaster, manager
+
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Hintergrund-Task für WebSocket-Broadcast beim Start der App aktivieren."""
+    broadcaster_task = asyncio.create_task(background_metrics_broadcaster())
+    yield
+    broadcaster_task.cancel()
+    try:
+        await broadcaster_task
+    except asyncio.CancelledError:
+        pass
+
 
 app = FastAPI(
     title="DeepBSV API",
     description="Status- und Steuerungsschnittstelle für das DeepBSV Solo-Mining",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS für lokale Weboberfläche konfigurieren
@@ -50,3 +67,17 @@ async def get_system_status() -> SystemStatusResponse:
 async def health_check() -> dict[str, str]:
     """Einfacher Health-Check für Docker und Container-Monitoring."""
     return {"status": "ok"}
+
+
+@app.websocket("/ws/metrics")
+async def websocket_metrics_endpoint(websocket: WebSocket) -> None:
+    """WebSocket-Endpunkt für Live-Datenstreaming an die Web-UI."""
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Wir halten die Verbindung offen und lauschen auf eventuelle Client-Nachrichten (z.B. Ping)
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)

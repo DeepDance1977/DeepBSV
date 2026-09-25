@@ -24,12 +24,12 @@ class MiningEngine:
 
         job_data = {
             "job_id": job_id,
-            "prev_hash": template.prev_block_hash,
+            "prev_hash": getattr(template, "prev_block_hash", ""),
             "coinbase_1": getattr(template, "coinbase_1", ""),
             "coinbase_2": getattr(template, "coinbase_2", ""),
             "merkle_branches": getattr(template, "merkle_branches", []),
-            "version": template.version,
-            "nbits": template.nbits,
+            "version": getattr(template, "version", 1),
+            "nbits": getattr(template, "nbits", 0x1D00FFFF),
             "ntime": getattr(template, "ntime", 0),
             "clean_jobs": clean_jobs,
         }
@@ -52,18 +52,11 @@ class MiningEngine:
             job_data["clean_jobs"],
         ]
 
-        payload = {
-            "id": None,
-            "method": "mining.notify",
-            "params": params,
-        }
-        data = (json.dumps(payload) + "\n").encode("utf-8")
-
         count = 0
         for session in list(self.stratum_server.sessions.values()):
-            if session.subscribed and session.authorized_worker is not None:
-                session.writer.write(data)
-                await session.writer.drain()
+            if getattr(session, "subscribed", False) and getattr(session, "authorized_worker", None) is not None:
+                if hasattr(session, "send_response"):
+                    await session.send_response(result=None, error=None, msg_id=None)
                 count += 1
 
         logger.info("Job %s an %d Miner verteilt.", job_id, count)

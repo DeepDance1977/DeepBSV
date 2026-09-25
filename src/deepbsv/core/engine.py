@@ -7,40 +7,6 @@ from deepbsv.stratum.server import StratumServer
 logger = logging.getLogger(__name__)
 
 
-class MiningJob:
-    """Repräsentiert einen Mining-Job mit Attribut-Zugriff für Tests."""
-
-    def __init__(self, job_data: dict[str, Any]) -> None:
-        self._data = job_data
-
-    @property
-    def job_id(self) -> str:
-        return self._data["job_id"]
-
-    @property
-    def clean_jobs(self) -> bool:
-        return self._data["clean_jobs"]
-
-    def to_notify_params(self) -> list[Any]:
-        return [
-            self._data["job_id"],
-            self._data["prev_hash"],
-            self._data["coinbase_1"],
-            self._data["coinbase_2"],
-            self._data["merkle_branches"],
-            f"{self._data['version']:08x}",
-            f"{self._data['nbits']:08x}",
-            f"{self._data['ntime']:08x}",
-            self._data["clean_jobs"],
-        ]
-
-    def __getitem__(self, key: str) -> Any:
-        return self._data[key]
-
-    def get(self, key: str, default: Any = None) -> Any:
-        return self._data.get(key, default)
-
-
 class MiningEngine:
     """Verwaltet Mining-Jobs und orchestriert die Verteilung an Stratum-Sessions."""
 
@@ -50,10 +16,10 @@ class MiningEngine:
 
     def create_job_from_template(
         self, template: BlockTemplate, clean_jobs: bool = True
-    ) -> MiningJob:
-        """Erstellt ein Stratum-Job-Objekt aus einem BlockTemplate."""
+    ) -> dict[str, Any]:
+        """Erstellt ein Stratum-Job-Diktionär aus einem BlockTemplate."""
         self.current_job_id += 1
-        job_id = f"{self.current_job_id}"
+        job_id = f"{self.current_job_id:x}"
 
         job_data = {
             "job_id": job_id,
@@ -68,12 +34,11 @@ class MiningEngine:
         }
 
         self.stratum_server.register_job(job_id, job_data)
-        return MiningJob(job_data)
+        return job_data
 
-    async def broadcast_job(self, job: MiningJob | dict[str, Any]) -> int:
+    async def broadcast_job(self, job_data: dict[str, Any]) -> None:
         """Sendet den neuen Job via mining.notify an alle aktiven & autorisierten Miner."""
-        job_id = job["job_id"] if isinstance(job, dict) else job.job_id
-        
+        job_id = job_data["job_id"]
         count = 0
         for session in list(self.stratum_server.sessions.values()):
             if (
@@ -85,4 +50,3 @@ class MiningEngine:
                 count += 1
 
         logger.info("Job %s an %d Miner verteilt.", job_id, count)
-        return count

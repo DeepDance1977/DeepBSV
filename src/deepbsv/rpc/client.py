@@ -1,11 +1,12 @@
-import typing
+from typing import Any
+
 import httpx
 import structlog
+
 from deepbsv.core.config import Settings
 from deepbsv.models.candidate import MiningCandidate
 from deepbsv.rpc.exceptions import (
     BSVRPCAuthenticationError,
-
     BSVRPCConnectionError,
     BSVRPCError,
     BSVRPCResponseError,
@@ -19,7 +20,7 @@ class BSVRPCClient:
 
     def __init__(self, config: Settings):
         self.config = config
-        self._client: typing.Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -34,7 +35,7 @@ class BSVRPCClient:
         if self._client and not self._client.is_closed:
             await self._client.aclose()
 
-    async def _call(self, method: str, params: typing.Optional[typing.List[typing.Any]] = None) -> typing.Any:
+    async def _call(self, method: str, params: list[Any] | None = None) -> Any:
         client = await self._get_client()
         payload = {
             "jsonrpc": "1.0",
@@ -46,7 +47,12 @@ class BSVRPCClient:
         try:
             response = await client.post(self.config.rpc_url, json=payload)
         except httpx.RequestError as exc:
-            logger.error("RPC connection failed", host=self.config.rpc_host, port=self.config.rpc_port, error=str(exc))
+            logger.error(
+                "RPC connection failed",
+                host=self.config.rpc_host,
+                port=self.config.rpc_port,
+                error=str(exc),
+            )
             raise BSVRPCConnectionError(f"Could not connect to BSV Node: {exc}") from exc
 
         if response.status_code in (401, 403):
@@ -69,5 +75,5 @@ class BSVRPCClient:
         result = await self._call("getminingcandidate")
         if not result or not isinstance(result, dict):
             raise BSVRPCError("Invalid or empty response structure for getminingcandidate")
-        
+
         return MiningCandidate.model_validate(result)

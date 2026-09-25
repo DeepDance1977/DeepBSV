@@ -1,5 +1,3 @@
-import pytest
-
 from deepbsv.stratum.validation import (
     build_block_header,
     calculate_merkle_root,
@@ -12,14 +10,12 @@ from deepbsv.stratum.validation import (
 
 def test_double_sha256() -> None:
     data = b"hello world"
-    # Bekannter Double-SHA256 Hash für "hello world"
     expected_hex = "bc62a933791176e336e16f731c3a50e50529124430f81d1134a6ef44b3602f23"
     result = double_sha256(data)
     assert result.hex() == expected_hex
 
 
 def test_nbits_to_target() -> None:
-    # Standard-Genesis-Block nBits (0x1d00ffff)
     nbits = 0x1D00FFFF
     target = nbits_to_target(nbits)
     assert target == 0x00000000FFFF0000000000000000000000000000000000000000000000000000
@@ -68,14 +64,12 @@ def test_build_block_header_length() -> None:
 def test_validate_share_success_and_failure() -> None:
     header = b"\x00" * 80
 
-    # Sehr hohes Target -> sollte immer gültig sein
     high_target = (1 << 256) - 1
     is_valid, hash_hex, hash_int = validate_share(header, high_target)
     assert is_valid is True
     assert isinstance(hash_hex, str)
     assert hash_int <= high_target
 
-    # Target 0 -> sollte immer ungültig sein
     low_target = 0
     is_valid_fail, _, _ = validate_share(header, low_target)
     assert is_valid_fail is False

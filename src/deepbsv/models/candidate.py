@@ -1,4 +1,3 @@
-from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -19,10 +18,10 @@ class MiningCandidate(BaseModel):
     coinbase_value: int = Field(
         description="Total allowed reward in Satoshis", alias="coinbasevalue"
     )
-    coinbase: Optional[str] = Field(
+    coinbase: str | None = Field(
         default=None, description="Hex representation of partial/full coinbase transaction"
     )
-    merkle_proof: List[str] = Field(
+    merkle_proof: list[str] = Field(
         default_factory=list,
         description="Merkle proof branches for coinbase construction",
         alias="merkleproof",

@@ -1,5 +1,6 @@
-import pytest
 import httpx
+import pytest
+
 from deepbsv.core.config import Settings
 from deepbsv.rpc.client import BSVRPCClient
 from deepbsv.rpc.exceptions import (

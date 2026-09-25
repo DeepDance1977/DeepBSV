@@ -81,12 +81,8 @@ class MiningEngine:
                 and getattr(session, "authorized_worker", None) is not None
             ):
                 send_resp = getattr(session, "send_response", None)
-                if send_resp is not None:
-                    try:
-                        if callable(send_resp):
-                            await send_resp(result=None, error=None, msg_id=None)
-                    except Exception:
-                        pass
+                if callable(send_resp):
+                    await send_resp(result=None, error=None, msg_id=None)
                 count += 1
 
         logger.info("Job %s an %d Miner verteilt.", job_id, count)

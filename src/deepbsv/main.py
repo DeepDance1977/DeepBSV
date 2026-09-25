@@ -18,7 +18,6 @@ async def main() -> None:
     setup_logging()
     logger.info("Starte DeepBSV Solo-Mining Server...")
 
-    # 1. RPC Client und Stratum Server initialisieren
     rpc_url = getattr(settings, "NODE_RPC_URL", "http://127.0.0.1:8332")
     rpc_user = getattr(settings, "NODE_RPC_USER", "user")
     rpc_password = getattr(settings, "NODE_RPC_PASSWORD", "password")
@@ -36,16 +35,14 @@ async def main() -> None:
     engine = MiningEngine(stratum_server)
     candidate_manager = CandidateManager(rpc_client, poll_interval_seconds=1.0)
 
-    # 2. Callback-Logik bei neuem Mining Candidate definieren
     async def on_new_candidate(candidate: MiningCandidate) -> None:
         logger.info("Neuer Mining Candidate empfangen: %s", candidate.id)
-        template = BlockTemplate.from_candidate(candidate)
+        template = BlockTemplate(candidate)
         job = engine.create_job_from_template(template, clean_jobs=True)
         await engine.broadcast_job(job)
 
     candidate_manager.subscribe(on_new_candidate)
 
-    # 3. Server und Polling-Loop starten
     await stratum_server.start()
     await candidate_manager.start_polling()
 
@@ -55,7 +52,6 @@ async def main() -> None:
         stratum_port,
     )
 
-    # 4. Graceful Shutdown Handlers einrichten
     stop_event = asyncio.Event()
 
     def _shutdown_signal() -> None:
@@ -67,11 +63,10 @@ async def main() -> None:
         try:
             loop.add_signal_handler(sig, _shutdown_signal)
         except NotImplementedError:
-            pass  # Fallback für Plattformen ohne Signal-Handler-Support
+            pass
 
     await stop_event.wait()
 
-    # 5. Ressourcen geordnet freigeben
     await candidate_manager.stop_polling()
     await stratum_server.stop()
     logger.info("DeepBSV beendet.")

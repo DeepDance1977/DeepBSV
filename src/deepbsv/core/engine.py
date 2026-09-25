@@ -24,13 +24,13 @@ class MiningJob:
     def to_notify_params(self) -> list[Any]:
         return [
             self._data["job_id"],
-            self._data["prev_hash"],
-            self._data["coinbase_1"],
-            self._data["coinbase_2"],
-            self._data["merkle_branches"],
-            f"{self._data['version']:08x}",
-            f"{self._data['nbits']:08x}",
-            f"{self._data['ntime']:08x}",
+            self._data.get("prev_hash", ""),
+            self._data.get("coinbase_1", ""),
+            self._data.get("coinbase_2", ""),
+            self._data.get("merkle_branches", []),
+            f"{self._data.get('version', 1):08x}",
+            f"{self._data.get('nbits', 0x1D00FFFF):08x}",
+            f"{self._data.get('ntime', 0):08x}",
             self._data["clean_jobs"],
         ]
 

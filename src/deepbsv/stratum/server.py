@@ -51,7 +51,7 @@ class StratumServer:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         """Verwaltet eine einzelne Client-Verbindung über das Stratum-Protokoll."""
-        self.active_connections += q := 1  # Zähler erhöhen
+        self.active_connections += 1  # Zähler erhöhen
         peername = writer.get_extra_info("peername")
         logger.info("Neuer Client verbunden: %s", peername)
 

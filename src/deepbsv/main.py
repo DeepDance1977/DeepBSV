@@ -4,7 +4,7 @@ import structlog
 
 from deepbsv.core.config import settings
 from deepbsv.core.logging import setup_logging
-from deepbsv.rpc.client import BSVRPCClient
+from deepbsv.rpc.client import BSVNodeRPCClient
 from deepbsv.rpc.exceptions import BSVRPCError
 
 setup_logging(settings.log_level)

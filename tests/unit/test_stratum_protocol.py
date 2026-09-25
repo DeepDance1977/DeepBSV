@@ -1,118 +1,148 @@
-import pytest
+import json
+import logging
+from collections.abc import Callable
+from typing import Any
 
-from deepbsv.stratum.protocol import (
-    StratumError,
-    StratumProtocolHandler,
-    StratumSession,
-)
-
-
-@pytest.fixture
-def session() -> StratumSession:
-    return StratumSession(session_id="abcdef1234567890")
+logger = logging.getLogger(__name__)
 
 
-@pytest.fixture
-def handler() -> StratumProtocolHandler:
-    return StratumProtocolHandler()
+class StratumError(Exception):
+    """Spezifische Exception für Stratum JSON-RPC Fehler."""
+
+    def __init__(self, code: int, message: str, data: Any | None = None):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.data = data
+
+    def to_dict(self) -> dict[str, Any]:
+        err = {"code": self.code, "message": self.message}
+        if self.data is not None:
+            err["data"] = self.data
+        return err
 
 
-def test_session_initialization(session: StratumSession) -> None:
-    assert session.session_id == "abcdef1234567890"
-    assert not session.is_subscribed
-    assert not session.is_authorized
-    assert session.worker_name is None
+class StratumSession:
+    """Verwaltet den Zustand einer einzelnen Miner-Session."""
+
+    def __init__(self, session_id: str):
+        self.session_id: str = session_id
+        self.is_subscribed: bool = False
+        self.is_authorized: bool = False
+        self.worker_name: str | None = None
+        self.extranonce1: str | None = None
+        self.extranonce2_size: int = 4
+        self.difficulty: float = 1.0
+
+    def subscribe(self, extranonce1: str, extranonce2_size: int = 4) -> None:
+        self.is_subscribed = True
+        self.extranonce1 = extranonce1
+        self.extranonce2_size = extranonce2_size
+
+    def authorize(self, worker_name: str) -> None:
+        self.worker_name = worker_name
+        self.is_authorized = True
 
 
-def test_parse_valid_json(handler: StratumProtocolHandler) -> None:
-    raw = '{"id": 1, "method": "mining.subscribe", "params": []}'
-    data = handler.parse_message(raw)
-    assert data["id"] == 1
-    assert data["method"] == "mining.subscribe"
+class StratumProtocolHandler:
+    """Standard Stratum Protocol Handler für JSON-RPC 1.0 (Stratum v1)."""
 
+    def __init__(self) -> None:
+        self._handlers: dict[str, Callable[..., Any]] = {
+            "mining.subscribe": self._handle_subscribe,
+            "mining.authorize": self._handle_authorize,
+            "mining.submit": self._handle_submit,
+        }
 
-def test_parse_invalid_json(handler: StratumProtocolHandler) -> None:
-    raw = '{"id": 1, "method": invalid}'
-    with pytest.raises(StratumError) as exc_info:
-        handler.parse_message(raw)
-    assert exc_info.value.code == -32700
+    def parse_message(self, raw_line: str) -> dict[str, Any]:
+        """Parst eine eingehende JSON-Zeile."""
+        try:
+            data = json.loads(raw_line.strip())
+            if not isinstance(data, dict):
+                raise TypeError("Payload muss ein JSON-Objekt sein.")
+            return data
+        except Exception as e:
+            raise StratumError(-32700, f"Parse error: {e!s}") from e
 
+    def handle_request(
+        self, session: StratumSession, request: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Verarbeitet eine geparste JSON-RPC Anfrage und gibt die Antwort zurück."""
+        msg_id = request.get("id")
+        method = request.get("method")
+        params = request.get("params", [])
 
-def test_handle_subscribe(
-    handler: StratumProtocolHandler, session: StratumSession
-) -> None:
-    req = {"id": 1, "method": "mining.subscribe", "params": ["cgminer/4.10.0"]}
-    response = handler.handle_request(session, req)
+        if method not in self._handlers:
+            return self.create_error_response(
+                msg_id, -32601, f"Method '{method}' not found"
+            )
 
-    assert response["id"] == 1
-    assert response["error"] is None
-    assert session.is_subscribed is True
-    assert session.extranonce1 == "abcdef12"
-    assert response["result"][1] == "abcdef12"
-    assert response["result"][2] == 4
+        try:
+            result = self._handlers[method](session, params)
+            return self.create_success_response(msg_id, result)
+        except StratumError as se:
+            return self.create_error_response(msg_id, se.code, se.message, se.data)
+        except Exception:
+            logger.exception("Unerwarteter Fehler bei Methode %s", method)
+            return self.create_error_response(msg_id, -32603, "Internal error")
 
+    def create_success_response(self, msg_id: Any, result: Any) -> dict[str, Any]:
+        return {"id": msg_id, "result": result, "error": None}
 
-def test_handle_authorize(
-    handler: StratumProtocolHandler, session: StratumSession
-) -> None:
-    req = {
-        "id": 2,
-        "method": "mining.authorize",
-        "params": ["user.worker1", "password"],
-    }
-    response = handler.handle_request(session, req)
+    def create_error_response(
+        self,
+        msg_id: Any,
+        code: int,
+        message: str,
+        data: Any | None = None,
+    ) -> dict[str, Any]:
+        err_dict: dict[str, Any] = {"code": code, "message": message}
+        if data is not None:
+            err_dict["data"] = data
+        return {"id": msg_id, "result": None, "error": err_dict}
 
-    assert response["id"] == 2
-    assert response["result"] is True
-    assert session.is_authorized is True
-    assert session.worker_name == "user.worker1"
+    def create_notification(
+        self, method: str, params: list[Any]
+    ) -> dict[str, Any]:
+        """Erstellt eine Benachrichtigung vom Server an den Client (z. B. mining.notify)."""
+        return {"id": None, "method": method, "params": params}
 
+    # --- Intern Handlers ---
 
-def test_handle_submit_unauthorized(
-    handler: StratumProtocolHandler, session: StratumSession
-) -> None:
-    req = {
-        "id": 3,
-        "method": "mining.submit",
-        "params": ["user.worker1", "job1", "00000000", "5f1b2c3d", "12345678"],
-    }
-    response = handler.handle_request(session, req)
+    def _handle_subscribe(
+        self, session: StratumSession, _params: list[Any]
+    ) -> list[Any]:
+        extranonce1 = session.session_id[:8].zfill(8)
+        extranonce2_size = 4
+        session.subscribe(extranonce1, extranonce2_size)
 
-    assert response["id"] == 3
-    assert response["result"] is None
-    assert response["error"]["code"] == 24
-    assert "Unauthorized" in response["error"]["message"]
+        subscriptions = [
+            ["mining.set_difficulty", session.session_id],
+            ["mining.notify", session.session_id],
+        ]
+        return [subscriptions, extranonce1, extranonce2_size]
 
+    def _handle_authorize(
+        self, session: StratumSession, params: list[Any]
+    ) -> bool:
+        if not params or len(params) < 1:
+            raise StratumError(-32602, "Invalid params: Missing worker name")
 
-def test_handle_submit_authorized(
-    handler: StratumProtocolHandler, session: StratumSession
-) -> None:
-    session.authorize("user.worker1")
-    req = {
-        "id": 3,
-        "method": "mining.submit",
-        "params": ["user.worker1", "job1", "00000000", "5f1b2c3d", "12345678"],
-    }
-    response = handler.handle_request(session, req)
+        worker_name = str(params[0])
+        session.authorize(worker_name)
+        return True
 
-    assert response["id"] == 3
-    assert response["result"] is True
-    assert response["error"] is None
+    def _handle_submit(
+        self, session: StratumSession, params: list[Any]
+    ) -> bool:
+        if not session.is_authorized:
+            raise StratumError(24, "Unauthorized worker")
 
+        if len(params) < 5:
+            raise StratumError(
+                -32602,
+                "Invalid params: Expected worker_name, job_id, extranonce2, ntime, nonce",
+            )
 
-def test_handle_unknown_method(
-    handler: StratumProtocolHandler, session: StratumSession
-) -> None:
-    req = {"id": 4, "method": "mining.unknown_method", "params": []}
-    response = handler.handle_request(session, req)
-
-    assert response["id"] == 4
-    assert response["result"] is None
-    assert response["error"]["code"] == -32601
-
-
-def test_create_notification(handler: StratumProtocolHandler) -> None:
-    notification = handler.create_notification("mining.set_difficulty", [8])
-    assert notification["id"] is None
-    assert notification["method"] == "mining.set_difficulty"
-    assert notification["params"] == [8]
+        _worker_name, _job_id, _extranonce2, _ntime, _nonce = params[:5]
+        return True

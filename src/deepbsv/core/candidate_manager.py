@@ -25,6 +25,11 @@ class CandidateManager:
         self._polling_task: asyncio.Task[None] | None = None
         self._is_polling = False
 
+    @property
+    def is_running(self) -> bool:
+        """Gibt zurück, ob der Polling-Loop aktuell aktiv ist."""
+        return self._is_polling
+
     def subscribe(self, callback: CandidateCallback) -> None:
         """Registriert eine Callback-Funktion für neue Kandidaten-Events."""
         if callback not in self._subscribers:

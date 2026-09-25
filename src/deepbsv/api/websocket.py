@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Any
 
 from fastapi import WebSocket
 
@@ -21,7 +22,7 @@ class ConnectionManager:
         self.active_connections.remove(websocket)
         logger.info("WebSocket-Client getrennt. Aktive Verbindungen: %d", len(self.active_connections))
 
-    async def broadcast(self, message: dict) -> None:
+    async def broadcast(self, message: dict[str, Any]) -> None:
         """Sendet Daten an alle verbundenen Web-UI-Clients."""
         if not self.active_connections:
             return
@@ -46,7 +47,7 @@ async def background_metrics_broadcaster() -> None:
     """Simuliert oder holt periodisch Live-Metriken und streamt sie an das Frontend."""
     while True:
         try:
-            payload = {
+            payload: dict[str, Any] = {
                 "type": "metrics_update",
                 "hashrate": 0.0,
                 "active_miners": 0,

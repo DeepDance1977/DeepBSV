@@ -1,0 +1,27 @@
+manifest_version: '1'
+id: deepbsv
+name: DeepBSV Solo-Mining
+tagline: Professionelle BSV Solo-Mining Plattform für Raspberry Pi
+category: bitcoin
+version: '1.0.0'
+app_version: '1.0.0'
+image: ''
+description: >-
+  DeepBSV ist eine professionelle, standalone BSV Solo-Mining-Plattform, 
+  speziell optimiert für den Raspberry Pi 5. Inklusive Live-Metriken, 
+  asynchronem FastAPI-Backend und modernem Tailwind-Dashboard.
+developer: DeepBSV Team
+website: https://github.com
+dependencies: []
+repo: https://github.com
+support: https://github.com
+gallery:
+  - icon.png
+icon: icon.png
+path: ''
+default_port: 80
+permissions:
+  - NETWORK
+  - STORAGE
+implementation: docker-compose
+shim: false

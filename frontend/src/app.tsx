@@ -1,44 +1,38 @@
-import { useEffect, useState } from 'react';
-import { Activity, Cpu, Server } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 
-interface Metrics {
-  type: string;
-  hashrate: number;
-  active_miners: number;
-  current_height: number;
-}
-
-export default function App() {
-  const [metrics, setMetrics] = useState<Metrics>({
-    type: 'metrics_update',
-    hashrate: 0.0,
-    active_miners: 0,
-    current_height: 0,
-  });
-  const [isConnected, setIsConnected] = useState<boolean>(false);
+export function App() {
+  const [status, setStatus] = useState<string>('Verbinde mit DeepBSV Mining Core...');
+  const [metrics, setMetrics] = useState<{ hashrate: number; blocks: number }>({ hashrate: 0, blocks: 0 });
 
   useEffect(() => {
-    // WebSocket-Verbindung zum FastAPI-Backend aufbauen
-    const ws = new WebSocket('ws://localhost:8000/ws/metrics');
+    // Beispiel für WebSocket- oder API-Anbindung an das FastAPI Backend
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.hostname}:8000/ws`;
+    
+    const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      setIsConnected(true);
-      ws.send('ping');
+      setStatus('Verbunden mit DeepBSV Core (Live)');
     };
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'metrics_update') {
-          setMetrics(data);
-        }
-      } catch (err) {
-        console.error('Fehler beim Parsen der WebSocket-Daten:', err);
+        setMetrics({
+          hashrate: data.hashrate || 0,
+          blocks: data.blocks || 0,
+        });
+      } catch (e) {
+        console.error('Fehler beim Parsen der WebSocket-Daten', e);
       }
     };
 
+    ws.onerror = () => {
+      setStatus('Verbindungsfehler zum Mining-Backend');
+    };
+
     ws.onclose = () => {
-      setIsConnected(false);
+      setStatus('Verbindung getrennt. Reconnect läuft...');
     };
 
     return () => {
@@ -47,64 +41,36 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 font-sans">
-      <div className="max-w-5xl mx-auto space-y-6">
-        
-        {/* Header */}
-        <header className="flex justify-between items-center border-b border-slate-800 pb-4">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
+      <div className="max-w-xl w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
+        <div className="flex items-center space-x-4 mb-6">
+          <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg">
+            BSV
+          </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">DeepBSV Dashboard</h1>
-            <p className="text-sm text-slate-400">Raspberry Pi 5 Solo-Mining Plattform</p>
+            <h1 className="text-2xl font-bold tracking-tight">DeepBSV Dashboard</h1>
+            <p className="text-sm text-slate-400">Professional Solo-Mining on Raspberry Pi 5</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className={`h-3 w-3 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-            <span className="text-xs font-medium text-slate-300">
-              {isConnected ? 'Verbunden (Live)' : 'Getrennt'}
-            </span>
-          </div>
-        </header>
-
-        {/* Metriken Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          
-          {/* Hashrate Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex items-center justify-between shadow-lg">
-            <div>
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Hashrate</p>
-              <p className="text-2xl font-bold text-white mt-1">
-                {metrics.hashrate.toFixed(2)} <span className="text-sm font-normal text-slate-400">H/s</span>
-              </p>
-            </div>
-            <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-lg">
-              <Activity className="h-6 w-6" />
-            </div>
-          </div>
-
-          {/* Active Miners Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex items-center justify-between shadow-lg">
-            <div>
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Aktive Miner</p>
-              <p className="text-2xl font-bold text-white mt-1">{metrics.active_miners}</p>
-            </div>
-            <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-lg">
-              <Cpu className="h-6 w-6" />
-            </div>
-          </div>
-
-          {/* Block Height Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex items-center justify-between shadow-lg">
-            <div>
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Block-Höhe</p>
-              <p className="text-2xl font-bold text-white mt-1">{metrics.current_height}</p>
-            </div>
-            <div className="p-3 bg-amber-500/10 text-amber-400 rounded-lg">
-              <Server className="h-6 w-6" />
-            </div>
-          </div>
-
         </div>
 
+        <div className="bg-slate-950 rounded-xl p-4 border border-slate-800 mb-6">
+          <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Status</div>
+          <div className="text-sm font-medium text-indigo-400">{status}</div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
+            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Hashrate</div>
+            <div className="text-xl font-bold text-slate-100">{metrics.hashrate} <span className="text-xs font-normal text-slate-400">H/s</span></div>
+          </div>
+          <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
+            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Gefundene Blöcke</div>
+            <div className="text-xl font-bold text-emerald-400">{metrics.blocks}</div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+
+export default App;

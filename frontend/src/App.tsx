@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export function App() {
   const [status, setStatus] = useState<string>('Verbinde mit DeepBSV Mining Core...');
   const [metrics, setMetrics] = useState<{ hashrate: number; blocks: number }>({ hashrate: 0, blocks: 0 });
 
   useEffect(() => {
-    // Beispiel für WebSocket- oder API-Anbindung an das FastAPI Backend
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.hostname}:8000/ws`;
     

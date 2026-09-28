@@ -3,28 +3,29 @@ version: '3.8'
 services:
   api:
     build: .
-    container_name: deepbsv-api
+    image: deepbsv_api:latest
+    container_name: ${APP_ID}_api_server
     restart: unless-stopped
-    ports:
-      - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
     networks:
-      - deepbsv-net
+      - default
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: deepbsv-frontend
+    image: deepbsv_frontend:latest
+    container_name: ${APP_ID}_web_server
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "${APP_PORT}:80"
     depends_on:
       - api
     networks:
-      - deepbsv-net
+      - default
 
 networks:
-  deepbsv-net:
-    driver: bridge
+  default:
+    ipam:
+      driver: default

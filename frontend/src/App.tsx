@@ -1,13 +1,23 @@
 import { useEffect, useState } from 'react';
 
+type Metrics = {
+  hashrate: number;
+  blocks: number;
+};
+
 export function App() {
-  const [status, setStatus] = useState<string>('Verbinde mit DeepBSV Mining Core...');
-  const [metrics, setMetrics] = useState<{ hashrate: number; blocks: number }>({ hashrate: 0, blocks: 0 });
+  const [status, setStatus] = useState<string>(
+    'Verbinde mit DeepBSV Mining Core...'
+  );
+  const [metrics, setMetrics] = useState<Metrics>({
+    hashrate: 0,
+    blocks: 0,
+  });
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname}:8000/ws`;
-    
+    const wsUrl = `${protocol}//${window.location.host}/ws/metrics`;
+
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
@@ -17,12 +27,16 @@ export function App() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+
         setMetrics({
-          hashrate: data.hashrate || 0,
-          blocks: data.blocks || 0,
+          hashrate: Number(data.hashrate) || 0,
+          blocks: Number(data.blocks) || 0,
         });
-      } catch (e) {
-        console.error('Fehler beim Parsen der WebSocket-Daten', e);
+      } catch (error) {
+        console.error(
+          'Fehler beim Parsen der WebSocket-Daten:',
+          error
+        );
       }
     };
 
@@ -46,25 +60,50 @@ export function App() {
           <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg">
             BSV
           </div>
+
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">DeepBSV Dashboard</h1>
-            <p className="text-sm text-slate-400">Professional Solo-Mining on Raspberry Pi 5</p>
+            <h1 className="text-2xl font-bold tracking-tight">
+              DeepBSV Dashboard
+            </h1>
+
+            <p className="text-sm text-slate-400">
+              Professional Solo-Mining on Raspberry Pi 5
+            </p>
           </div>
         </div>
 
         <div className="bg-slate-950 rounded-xl p-4 border border-slate-800 mb-6">
-          <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Status</div>
-          <div className="text-sm font-medium text-indigo-400">{status}</div>
+          <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">
+            Status
+          </div>
+
+          <div className="text-sm font-medium text-indigo-400">
+            {status}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
-            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Hashrate</div>
-            <div className="text-xl font-bold text-slate-100">{metrics.hashrate} <span className="text-xs font-normal text-slate-400">H/s</span></div>
+            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">
+              Hashrate
+            </div>
+
+            <div className="text-xl font-bold text-slate-100">
+              {metrics.hashrate}{' '}
+              <span className="text-xs font-normal text-slate-400">
+                H/s
+              </span>
+            </div>
           </div>
+
           <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
-            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Gefundene Blöcke</div>
-            <div className="text-xl font-bold text-emerald-400">{metrics.blocks}</div>
+            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">
+              Gefundene Blöcke
+            </div>
+
+            <div className="text-xl font-bold text-emerald-400">
+              {metrics.blocks}
+            </div>
           </div>
         </div>
       </div>

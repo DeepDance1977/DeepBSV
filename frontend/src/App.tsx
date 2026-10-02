@@ -3,6 +3,16 @@ import { useEffect, useState } from 'react';
 type Metrics = {
   hashrate: number;
   blocks: number;
+  activeMiners: number;
+  currentHeight: number;
+};
+
+type StatusResponse = {
+  status: string;
+  node_connected: boolean;
+  active_miners: number;
+  current_height: number;
+  hashrate: number;
 };
 
 export function App() {
@@ -13,44 +23,60 @@ export function App() {
   const [metrics, setMetrics] = useState<Metrics>({
     hashrate: 0,
     blocks: 0,
+    activeMiners: 0,
+    currentHeight: 0,
   });
 
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/metrics`;
+    let active = true;
 
-    const ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-      setStatus('Verbunden mit DeepBSV Core (Live)');
-    };
-
-    ws.onmessage = (event) => {
+    const loadStatus = async () => {
       try {
-        const data = JSON.parse(event.data);
+        const response = await fetch('/api/status', {
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data: StatusResponse = await response.json();
+
+        if (!active) {
+          return;
+        }
 
         setMetrics({
           hashrate: Number(data.hashrate) || 0,
-          blocks: Number(data.blocks) || 0,
+          blocks: 0,
+          activeMiners: Number(data.active_miners) || 0,
+          currentHeight: Number(data.current_height) || 0,
         });
+
+        if (data.node_connected) {
+          setStatus('Verbunden mit DeepBSV Core');
+        } else {
+          setStatus('BSV-Node nicht verbunden');
+        }
       } catch (error) {
         console.error(
-          'Fehler beim Parsen der WebSocket-Daten:',
+          'Fehler beim Abrufen des DeepBSV-Status:',
           error
         );
+
+        if (active) {
+          setStatus('Verbindungsfehler zum Mining-Backend');
+        }
       }
     };
 
-    ws.onerror = () => {
-      setStatus('Verbindungsfehler zum Mining-Backend');
-    };
+    loadStatus();
 
-    ws.onclose = () => {
-      setStatus('Verbindung getrennt. Reconnect läuft...');
-    };
+    const interval = window.setInterval(loadStatus, 2000);
 
     return () => {
-      ws.close();
+      active = false;
+      window.clearInterval(interval);
     };
   }, []);
 
@@ -83,7 +109,7 @@ export function App() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
             <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">
               Hashrate
@@ -104,6 +130,28 @@ export function App() {
 
             <div className="text-xl font-bold text-emerald-400">
               {metrics.blocks}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
+            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">
+              Aktive Miner
+            </div>
+
+            <div className="text-xl font-bold text-slate-100">
+              {metrics.activeMiners}
+            </div>
+          </div>
+
+          <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
+            <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">
+              Blockhöhe
+            </div>
+
+            <div className="text-xl font-bold text-slate-100">
+              {metrics.currentHeight}
             </div>
           </div>
         </div>

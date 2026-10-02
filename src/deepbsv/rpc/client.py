@@ -16,7 +16,7 @@ class BSVNodeRPCError(Exception):
 
 
 class BSVNodeRPCClient:
-    """Async Client für die JSON-RPC Kommunikation mit einer BSV Node (Pruned-compatible)."""
+    """Async Client für die JSON-RPC Kommunikation mit einer BSV Node."""
 
     def __init__(
         self,
@@ -30,8 +30,13 @@ class BSVNodeRPCClient:
         self.timeout = timeout
         self._request_id = 0
 
-    async def _call(self, method: str, params: list[Any] | None = None) -> Any:
+    async def _call(
+        self,
+        method: str,
+        params: list[Any] | None = None,
+    ) -> Any:
         self._request_id += 1
+
         payload = {
             "jsonrpc": "1.0",
             "id": self._request_id,
@@ -48,35 +53,86 @@ class BSVNodeRPCClient:
                 )
                 response.raise_for_status()
             except httpx.HTTPError as e:
-                logger.error("HTTP-Fehler bei RPC-Aufruf %s: %s", method, e)
-                raise BSVNodeRPCError(-32603, f"HTTP Error: {e!s}") from e
+                logger.error(
+                    "HTTP-Fehler bei RPC-Aufruf %s: %s",
+                    method,
+                    e,
+                )
+                raise BSVNodeRPCError(
+                    -32603,
+                    f"HTTP Error: {e!s}",
+                ) from e
 
-            data = response.json()
+            try:
+                data = response.json()
+            except ValueError as e:
+                logger.error(
+                    "Ungültige JSON-Antwort bei RPC-Aufruf %s",
+                    method,
+                )
+                raise BSVNodeRPCError(
+                    -32700,
+                    "Ungültige JSON-RPC-Antwort",
+                ) from e
+
             if data.get("error") is not None:
                 err = data["error"]
+
                 raise BSVNodeRPCError(
-                    err.get("code", -1), err.get("message", "Unknown RPC error")
+                    err.get("code", -1),
+                    err.get("message", "Unknown RPC error"),
                 )
 
             return data.get("result")
 
-    async def get_mining_candidate(self) -> dict[str, Any]:
-        """Ruft einen neuen Mining Candidate ab (optimal für Pruned Nodes)."""
-        result = await self._call("getminingcandidate")
+    async def get_blockchain_info(self) -> dict[str, Any]:
+        """Liest grundlegende Blockchain-Informationen der BSV Node."""
+        result = await self._call("getblockchaininfo")
+
         if not isinstance(result, dict):
-            raise BSVNodeRPCError(-32600, "Ungültiges Antwortformat für Candidate")
+            raise BSVNodeRPCError(
+                -32600,
+                "Ungültiges Antwortformat für Blockchain-Informationen",
+            )
+
+        return result
+
+    async def get_mining_candidate(self) -> dict[str, Any]:
+        """Ruft einen neuen Mining Candidate ab."""
+        result = await self._call("getminingcandidate")
+
+        if not isinstance(result, dict):
+            raise BSVNodeRPCError(
+                -32600,
+                "Ungültiges Antwortformat für Candidate",
+            )
+
         return result
 
     async def submit_mining_candidate(
-        self, candidate_id: str, coinbase_tx_hex: str, header_hex: str
+        self,
+        candidate_id: str,
+        coinbase_tx_hex: str,
+        header_hex: str,
     ) -> dict[str, Any]:
         """Reicht eine gefundene Block-Lösung an die Node ein."""
-        params = [{
-            "id": candidate_id,
-            "coinbase": coinbase_tx_hex,
-            "header": header_hex,
-        }]
-        result = await self._call("submitminingcandidate", params)
+        params = [
+            {
+                "id": candidate_id,
+                "coinbase": coinbase_tx_hex,
+                "header": header_hex,
+            }
+        ]
+
+        result = await self._call(
+            "submitminingcandidate",
+            params,
+        )
+
         if not isinstance(result, dict):
-            raise BSVNodeRPCError(-32600, "Ungültiges Antwortformat bei Submit")
+            raise BSVNodeRPCError(
+                -32600,
+                "Ungültiges Antwortformat bei Submit",
+            )
+
         return result

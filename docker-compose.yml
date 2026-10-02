@@ -1,30 +1,102 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  api:
-    build: .
-    image: deepbsv_api:latest
-    container_name: ${APP_ID}_api_server
-    restart: unless-stopped
-    environment:
-      - PYTHONUNBUFFERED=1
-    networks:
-      - default
 
+  # ------------------------------------------------------------
+  # DeepBSV Web Dashboard
+  # ------------------------------------------------------------
+  # Dieser Service muss bei 5tratumOS der erste echte Web-Service
+  # bleiben.
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    image: deepbsv_frontend:latest
-    container_name: ${APP_ID}_web_server
+    image: ghcr.io/deepdance1977/deepbsv-frontend:latest
+    pull_policy: always
     restart: unless-stopped
-    ports:
-      - "${APP_PORT}:80"
     depends_on:
       - api
     networks:
       - default
 
+  # ------------------------------------------------------------
+  # 5tratumOS / Umbrel App Proxy
+  # ------------------------------------------------------------
+  app_proxy:
+    environment:
+      APP_HOST: deepdance-deepbsv_frontend_1
+      APP_PORT: 80
+
+  # ------------------------------------------------------------
+  # DeepBSV API / Mining Core
+  # ------------------------------------------------------------
+  api:
+    image: ghcr.io/deepdance1977/deepbsv-api:latest
+    pull_policy: always
+    restart: unless-stopped
+    stop_grace_period: 1m
+
+    environment:
+      PYTHONUNBUFFERED: "1"
+
+      # BSV Node innerhalb des Docker-Netzwerks
+      BSV_RPC_HOST: bsv-node
+      BSV_RPC_PORT: "8332"
+
+      # Interne RPC-Zugangsdaten
+      BSV_RPC_USER: deepbsv
+      BSV_RPC_PASSWORD: deepbsv-internal
+
+    depends_on:
+      - bsv-node
+
+    ports:
+      # API
+      - "8000:8000"
+
+      # Stratum V1
+      - "3333:3333"
+
+    networks:
+      - default
+
+  # ------------------------------------------------------------
+  # Bitcoin SV Mainnet Node
+  # ------------------------------------------------------------
+  bsv-node:
+    image: ghcr.io/deepdance1977/deepbsv-bsv-node:1.2.2
+    pull_policy: always
+    restart: unless-stopped
+    stop_grace_period: 5m
+
+    environment:
+      BITCOIN_RPC_USER: deepbsv
+      BITCOIN_RPC_PASSWORD: deepbsv-internal
+
+      BITCOIN_DATA: /data
+
+    volumes:
+      # Die komplette BSV-Blockchain bleibt persistent erhalten.
+      - bsv_data:/data
+
+    ports:
+      # BSV Mainnet P2P
+      - "8333:8333"
+
+    expose:
+      # RPC bleibt im Docker-Netzwerk erreichbar.
+      # Er wird NICHT nach außen veröffentlicht.
+      - "8332"
+
+    networks:
+      - default
+
+# ------------------------------------------------------------
+# Persistent storage
+# ------------------------------------------------------------
+volumes:
+  bsv_data:
+
+# ------------------------------------------------------------
+# Internal Docker network
+# ------------------------------------------------------------
 networks:
   default:
     ipam:

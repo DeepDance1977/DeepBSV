@@ -1,45 +1,40 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
-
 [project]
 name = "deepbsv"
 version = "0.1.0"
-description = "Autonomous Bitcoin SV Solo-Mining Platform"
+description = "Bitcoin SV solo mining server and Stratum V1 implementation"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "MIT"}
-authors = [
-    {name = "DeepBSV Core Developers"}
-]
+license = { text = "MIT" }
 dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
     "httpx>=0.27.0",
     "pydantic>=2.6.0",
     "pydantic-settings>=2.2.0",
     "structlog>=24.1.0",
 ]
-
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
-    "mypy>=1.8.0",
-    "ruff>=0.2.0",
+    "ruff>=0.6.0",
+    "mypy>=1.10.0",
 ]
-
+[project.scripts]
+deepbsv = "deepbsv.cli:main"
+[tool.setuptools.packages.find]
+where = ["src"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "deepbsv.api.*"
-disallow_untyped_decorators = false

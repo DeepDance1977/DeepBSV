@@ -1,60 +1,101 @@
-import asyncio
-import logging
-from typing import Any
+importasyncio
 
-from fastapi import WebSocket
+importlogging
 
-logger = logging.getLogger(__name__)
+fromtypingimportAny
 
+fromfastapiimportWebSocket
 
-class ConnectionManager:
-    """Verwaltet aktive WebSocket-Verbindungen für das Echtzeit-Dashboard."""
+logger=logging.getLogger(__name__)
 
-    def __init__(self) -> None:
-        self.active_connections: set[WebSocket] = set()
+classConnectionManager:
 
-    async def connect(self, websocket: WebSocket) -> None:
-        await websocket.accept()
-        self.active_connections.add(websocket)
-        logger.info("Neuer WebSocket-Client verbunden. Aktive Verbindungen: %d", len(self.active_connections))
+"""VerwaltetaktiveWebSocket-VerbindungenfürdasEchtzeit-Dashboard."""
 
-    def disconnect(self, websocket: WebSocket) -> None:
-        self.active_connections.remove(websocket)
-        logger.info("WebSocket-Client getrennt. Aktive Verbindungen: %d", len(self.active_connections))
+def__init__(self)->None:
 
-    async def broadcast(self, message: dict[str, Any]) -> None:
-        """Sendet Daten an alle verbundenen Web-UI-Clients."""
-        if not self.active_connections:
-            return
-        
-        disconnected = set()
-        for connection in self.active_connections:
-            try:
-                await connection.send_json(message)
-            except Exception as e:  # noqa: BLE001
-                logger.error("Fehler beim Senden über WebSocket: %s", e)
-                disconnected.add(connection)
-        
-        # Tote Verbindungen aufräumen
-        for conn in disconnected:
-            self.active_connections.remove(conn)
+self.active_connections:set[WebSocket]=set()
 
+asyncdefconnect(self,websocket:WebSocket)->None:
 
-manager = ConnectionManager()
+awaitwebsocket.accept()
 
+self.active_connections.add(websocket)
 
-async def background_metrics_broadcaster() -> None:
-    """Simuliert oder holt periodisch Live-Metriken und streamt sie an das Frontend."""
-    while True:
-        try:
-            payload: dict[str, Any] = {
-                "type": "metrics_update",
-                "hashrate": 0.0,
-                "active_miners": 0,
-                "current_height": 0,
-            }
-            await manager.broadcast(payload)
-        except Exception as e:  # noqa: BLE001
-            logger.error("Fehler im Metrics Broadcaster: %s", e)
-        
-        await asyncio.sleep(2.0)
+logger.info(
+
+"NeuerWebSocket-Clientverbunden.AktiveVerbindungen:%d",
+
+len(self.active_connections),
+
+)
+
+defdisconnect(self,websocket:WebSocket)->None:
+
+self.active_connections.remove(websocket)
+
+logger.info(
+
+"WebSocket-Clientgetrennt.AktiveVerbindungen:%d",
+
+len(self.active_connections),
+
+)
+
+asyncdefbroadcast(self,message:dict[str,Any])->None:
+
+"""SendetDatenanalleverbundenenWeb-UI-Clients."""
+
+ifnotself.active_connections:
+
+return
+
+disconnected=set()
+
+forconnectioninself.active_connections:
+
+try:
+
+awaitconnection.send_json(message)
+
+exceptExceptionase:#noqa:BLE001
+
+logger.error("FehlerbeimSendenüberWebSocket:%s",e)
+
+disconnected.add(connection)
+
+#ToteVerbindungenaufräumen
+
+forconnindisconnected:
+
+self.active_connections.remove(conn)
+
+manager=ConnectionManager()
+
+asyncdefbackground_metrics_broadcaster()->None:
+
+"""SimuliertoderholtperiodischLive-MetrikenundstreamtsieandasFrontend."""
+
+whileTrue:
+
+try:
+
+payload:dict[str,Any]={
+
+"type":"metrics_update",
+
+"hashrate":0.0,
+
+"active_miners":0,
+
+"current_height":0,
+
+}
+
+awaitmanager.broadcast(payload)
+
+exceptExceptionase:#noqa:BLE001
+
+logger.error("FehlerimMetricsBroadcaster:%s",e)
+
+awaitasyncio.sleep(2.0)

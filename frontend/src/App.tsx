@@ -9,6 +9,7 @@ export function App() {
   const [status, setStatus] = useState<string>(
     'Verbinde mit DeepBSV Mining Core...'
   );
+
   const [metrics, setMetrics] = useState<Metrics>({
     hashrate: 0,
     blocks: 0,

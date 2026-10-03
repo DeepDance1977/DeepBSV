@@ -1,27 +1,40 @@
-manifest_version: '1'
-id: deepbsv
-name: DeepBSV Solo-Mining
-tagline: Professionelle BSV Solo-Mining Plattform für Raspberry Pi
+manifestVersion: 1
+id: deepdance-deepbsv
 category: bitcoin
-version: '1.0.0'
-app_version: '1.0.0'
-image: ''
+name: DeepBSV Solo Mining Engine
+version: "1.0.3"
+
+tagline: Eigenstaendige Stratum-V1 Solo-Mining-Engine fuer Bitcoin SV
+
 description: >-
-  DeepBSV ist eine professionelle, standalone BSV Solo-Mining-Plattform, 
-  speziell optimiert für den Raspberry Pi 5. Inklusive Live-Metriken, 
-  asynchronem FastAPI-Backend und modernem Tailwind-Dashboard.
-developer: DeepBSV Team
-website: https://github.com
-dependencies: []
-repo: https://github.com
-support: https://github.com
+  DeepBSV ist eine eigenstaendige Solo-Mining-Plattform fuer Bitcoin SV mit
+  integriertem Bitcoin-SV-Mainnet-Node, Mining-Core und Stratum-V1-Server.
+  Die App stellt die komplette Mining-Infrastruktur in einem Paket bereit.
+  Verbinde deinen ASIC-Miner direkt mit dieser App auf Port 3333, um solo auf
+  Bitcoin SV zu minen. Die Blockchain wird dauerhaft innerhalb der App
+  gespeichert und bleibt ueber Neustarts und Updates erhalten.
+
+developer: DeepDance
+
+website: https://github.com/DeepDance1977/DeepBSV
+repo: https://github.com/DeepDance1977/DeepBSV
+support: https://github.com/DeepDance1977/DeepBSV/issues
+
+port: 3000
+
 gallery:
-  - icon.png
-icon: icon.png
-path: ''
-default_port: 80
-permissions:
-  - NETWORK
-  - STORAGE
-implementation: docker-compose
-shim: false
+  - 1.jpg
+
+path: ""
+
+defaultUsername: ""
+defaultPassword: ""
+
+submitter: DeepDance
+submission: https://github.com/DeepDance1977/DeepBSV
+
+releaseNotes: >-
+  Version 1.0.3: DeepBSV enthaelt jetzt einen integrierten Bitcoin-SV-
+  Mainnet-Node. Die bisher erforderliche separate BSV-Node-App ist nicht
+  mehr notwendig. API, Mining-Core, Stratum-V1-Server und BSV-Node werden
+  gemeinsam als eine App bereitgestellt.

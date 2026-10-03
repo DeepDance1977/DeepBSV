@@ -5,8 +5,7 @@ services:
   # ------------------------------------------------------------
   # DeepBSV Web Dashboard
   # ------------------------------------------------------------
-  # Dieser Service muss bei 5tratumOS der erste echte Web-Service
-  # bleiben.
+  # Muss bei 5tratumOS der erste echte Web-Service bleiben.
   frontend:
     image: ghcr.io/deepdance1977/deepbsv-frontend:latest
     pull_policy: always
@@ -36,11 +35,11 @@ services:
     environment:
       PYTHONUNBUFFERED: "1"
 
-      # BSV Node innerhalb des Docker-Netzwerks
+      # --------------------------------------------------------
+      # Verbindung zum integrierten Bitcoin-SV-Node
+      # --------------------------------------------------------
       BSV_RPC_HOST: bsv-node
       BSV_RPC_PORT: "8332"
-
-      # Interne RPC-Zugangsdaten
       BSV_RPC_USER: deepbsv
       BSV_RPC_PASSWORD: deepbsv-internal
 
@@ -48,10 +47,10 @@ services:
       - bsv-node
 
     ports:
-      # API
+      # DeepBSV API
       - "8000:8000"
 
-      # Stratum V1
+      # Stratum V1 für ASIC-Miner
       - "3333:3333"
 
     networks:
@@ -67,35 +66,53 @@ services:
     stop_grace_period: 5m
 
     environment:
+      # --------------------------------------------------------
+      # RPC
+      # --------------------------------------------------------
       BITCOIN_RPC_USER: deepbsv
       BITCOIN_RPC_PASSWORD: deepbsv-internal
 
+      # --------------------------------------------------------
+      # Persistenter Blockchain-Speicher
+      # --------------------------------------------------------
       BITCOIN_DATA: /data
 
     volumes:
-      # Die komplette BSV-Blockchain bleibt persistent erhalten.
+      # Die BSV-Blockchain bleibt über Neustarts/Updates erhalten.
       - bsv_data:/data
 
     ports:
-      # BSV Mainnet P2P
+      # Bitcoin SV Mainnet P2P
       - "8333:8333"
 
     expose:
-      # RPC bleibt im Docker-Netzwerk erreichbar.
-      # Er wird NICHT nach außen veröffentlicht.
+      # RPC nur innerhalb des Docker-Netzwerks.
       - "8332"
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bitcoin-cli -rpcconnect=127.0.0.1 -rpcport=8332 -rpcuser=deepbsv -rpcpassword=deepbsv-internal getblockchaininfo >/dev/null 2>&1"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
 
     networks:
       - default
 
+
 # ------------------------------------------------------------
-# Persistent storage
+# Persistenter Speicher
 # ------------------------------------------------------------
 volumes:
   bsv_data:
 
+
 # ------------------------------------------------------------
-# Internal Docker network
+# Internes Docker-Netzwerk
 # ------------------------------------------------------------
 networks:
   default:

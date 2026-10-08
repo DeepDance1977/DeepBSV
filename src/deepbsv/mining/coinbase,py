@@ -5,12 +5,165 @@ from dataclasses import dataclass
 
 @dataclass(slots=True, frozen=True)
 class CoinbaseParts:
-    """Die in Stratum V1 aufgeteilte Coinbase-Transaktion."""
+    """Aufgeteilte Coinbase-Transaktion für Stratum V1."""
 
     coinbase1: str
     coinbase2: str
     extranonce1_size: int
     extranonce2_size: int
+
+
+def _read_varint(
+    data: bytes,
+    offset: int,
+) -> tuple[int, int]:
+    """Liest einen Bitcoin-CompactSize-Wert."""
+
+    if offset >= len(data):
+        raise ValueError(
+            "Unerwartetes Ende der Transaktion",
+        )
+
+    prefix = data[offset]
+
+    if prefix < 0xFD:
+        return prefix, offset + 1
+
+    if prefix == 0xFD:
+        end = offset + 3
+
+        if end > len(data):
+            raise ValueError(
+                "Ungültiger CompactSize-Wert",
+            )
+
+        return int.from_bytes(
+            data[offset + 1:end],
+            "little",
+        ), end
+
+    if prefix == 0xFE:
+        end = offset + 5
+
+        if end > len(data):
+            raise ValueError(
+                "Ungültiger CompactSize-Wert",
+            )
+
+        return int.from_bytes(
+            data[offset + 1:end],
+            "little",
+        ), end
+
+    end = offset + 9
+
+    if end > len(data):
+        raise ValueError(
+            "Ungültiger CompactSize-Wert",
+        )
+
+    return int.from_bytes(
+        data[offset + 1:end],
+        "little",
+    ), end
+
+
+def _encode_varint(value: int) -> bytes:
+    """Kodiert einen Bitcoin-CompactSize-Wert."""
+
+    if value < 0:
+        raise ValueError(
+            "CompactSize-Wert darf nicht negativ sein",
+        )
+
+    if value < 0xFD:
+        return bytes([value])
+
+    if value <= 0xFFFF:
+        return b"\xfd" + value.to_bytes(
+            2,
+            "little",
+        )
+
+    if value <= 0xFFFFFFFF:
+        return b"\xfe" + value.to_bytes(
+            4,
+            "little",
+        )
+
+    if value <= 0xFFFFFFFFFFFFFFFF:
+        return b"\xff" + value.to_bytes(
+            8,
+            "little",
+        )
+
+    raise ValueError(
+        "CompactSize-Wert ist zu groß",
+    )
+
+
+def _find_coinbase_script(
+    transaction: bytes,
+) -> tuple[int, int, int]:
+    """
+    Findet die Coinbase-ScriptSig einer Bitcoin-Transaktion.
+
+    Rückgabe:
+        offset des ScriptSig-Inhalts,
+        ursprüngliche ScriptSig-Länge,
+        Offset direkt nach der ScriptSig.
+    """
+
+    if len(transaction) < 5:
+        raise ValueError(
+            "Coinbase-Transaktion ist zu kurz",
+        )
+
+    offset = 4
+
+    input_count, offset = _read_varint(
+        transaction,
+        offset,
+    )
+
+    if input_count != 1:
+        raise ValueError(
+            "Coinbase-Transaktion muss genau einen Input enthalten",
+        )
+
+    if offset + 36 > len(transaction):
+        raise ValueError(
+            "Coinbase-Input ist unvollständig",
+        )
+
+    previous_output = transaction[
+        offset:offset + 36
+    ]
+
+    if previous_output != b"\x00" * 32 + b"\xff\xff\xff\xff":
+        raise ValueError(
+            "Input ist kein Coinbase-Input",
+        )
+
+    offset += 36
+
+    script_length, script_start = _read_varint(
+        transaction,
+        offset,
+    )
+
+    script_end = script_start + script_length
+
+    if script_end > len(transaction):
+        raise ValueError(
+            "Coinbase-ScriptSig ist unvollständig",
+        )
+
+    return (
+        script_start,
+        script_length,
+        script_end,
+    )
 
 
 def split_coinbase(
@@ -19,11 +172,12 @@ def split_coinbase(
     extranonce2_size: int = 4,
 ) -> CoinbaseParts:
     """
-    Teilt eine Coinbase-Transaktion für Stratum V1 auf.
+    Teilt eine vollständige BSV-Coinbase-Transaktion
+    für Stratum V1 auf.
 
-    Der Extranonce-Bereich wird vor der Ausgabe nicht verändert.
-    DeepBSV verwendet einen definierten Platzhalter, der durch
-    extranonce1 und extranonce2 ersetzt wird.
+    Der Extranonce-Bereich wird am Ende der Coinbase-ScriptSig
+    eingefügt. Die ScriptSig-Länge der Transaktion wird dabei
+    korrekt angepasst.
     """
 
     if not coinbase_hex:
@@ -37,7 +191,7 @@ def split_coinbase(
         )
 
     try:
-        coinbase = bytes.fromhex(
+        transaction = bytes.fromhex(
             coinbase_hex,
         )
     except ValueError as exc:
@@ -55,34 +209,60 @@ def split_coinbase(
             "extranonce2_size muss größer als 0 sein",
         )
 
-    marker = b"DEEPBSVEXTRANONCE"
+    script_start, script_length, script_end = _find_coinbase_script(
+        transaction,
+    )
 
-    marker_position = coinbase.find(marker)
+    extranonce_size = (
+        extranonce1_size
+        + extranonce2_size
+    )
 
-    if marker_position < 0:
+    new_script_length = (
+        script_length
+        + extranonce_size
+    )
+
+    if new_script_length > 100:
         raise ValueError(
-            "Kein DeepBSV-Extranonce-Platzhalter in der Coinbase gefunden",
+            "Coinbase-ScriptSig würde die maximale Größe von 100 Bytes überschreiten",
         )
 
-    placeholder_size = extranonce1_size + extranonce2_size
+    script_length_offset = script_start
 
-    if len(marker) != placeholder_size:
-        raise ValueError(
-            "Extranonce-Platzhaltergröße stimmt nicht mit "
-            "extranonce1_size und extranonce2_size überein",
-        )
+    while (
+        script_length_offset > 0
+        and transaction[script_length_offset - 1]
+        in (0xFD, 0xFE, 0xFF)
+    ):
+        break
 
-    coinbase1 = coinbase[
-        :marker_position
-    ].hex()
+    script_length_start = script_start
 
-    coinbase2 = coinbase[
-        marker_position + len(marker):
-    ].hex()
+    if transaction[script_length_start - 1] < 0xFD:
+        script_length_start -= 1
+    elif transaction[script_length_start - 1] == 0xFD:
+        script_length_start -= 3
+    elif transaction[script_length_start - 1] == 0xFE:
+        script_length_start -= 5
+    else:
+        script_length_start -= 9
+
+    encoded_length = _encode_varint(
+        new_script_length,
+    )
+
+    prefix = (
+        transaction[:script_length_start]
+        + encoded_length
+        + transaction[script_start:script_end]
+    )
+
+    suffix = transaction[script_end:]
 
     return CoinbaseParts(
-        coinbase1=coinbase1,
-        coinbase2=coinbase2,
+        coinbase1=prefix.hex(),
+        coinbase2=suffix.hex(),
         extranonce1_size=extranonce1_size,
         extranonce2_size=extranonce2_size,
     )
@@ -95,12 +275,20 @@ def build_coinbase(
 ) -> str:
     """Setzt Extranonce1 und Extranonce2 in die Coinbase ein."""
 
-    if len(extranonce1) != parts.extranonce1_size * 2:
+    expected_extranonce1_length = (
+        parts.extranonce1_size * 2
+    )
+
+    expected_extranonce2_length = (
+        parts.extranonce2_size * 2
+    )
+
+    if len(extranonce1) != expected_extranonce1_length:
         raise ValueError(
             "extranonce1 hat eine ungültige Länge",
         )
 
-    if len(extranonce2) != parts.extranonce2_size * 2:
+    if len(extranonce2) != expected_extranonce2_length:
         raise ValueError(
             "extranonce2 hat eine ungültige Länge",
         )
@@ -108,9 +296,11 @@ def build_coinbase(
     try:
         bytes.fromhex(extranonce1)
         bytes.fromhex(extranonce2)
+        bytes.fromhex(parts.coinbase1)
+        bytes.fromhex(parts.coinbase2)
     except ValueError as exc:
         raise ValueError(
-            "Extranonce enthält ungültiges Hex",
+            "Coinbase oder Extranonce enthält ungültiges Hex",
         ) from exc
 
     return (

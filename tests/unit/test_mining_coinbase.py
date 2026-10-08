@@ -5,7 +5,6 @@ from deepbsv.mining.coinbase import (
     split_coinbase,
 )
 
-
 BSV_EXAMPLE_COINBASE = (
     "02000000"
     "01"
@@ -20,7 +19,6 @@ BSV_EXAMPLE_COINBASE = (
     "2103b8310da7c413106c6ce63814dbcd366c55e8ae39c8c43c1fdaeb76df56e4ff7dac"
     "00000000"
 )
-
 
 BSV_EXAMPLE_MERKLE_PROOF = [
     "497d51f3a933dd6e933cd37a4a5799066086d4ff45dce23f0819c7a6c7174ccb",

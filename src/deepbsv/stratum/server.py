@@ -86,6 +86,69 @@ class StratumServer:
         self._jobs[job_id] = job_data
         logger.info("Job %s erfolgreich im Server registriert.", job_id)
 
+    def _validate_submit_request(
+        self,
+        session: StratumSession,
+        request: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Prüft Worker und Job-ID vor der weiteren Share-Verarbeitung.
+
+        Diese Prüfung ersetzt keine kryptografische Share-Validierung.
+        Bei gültiger Grundstruktur wird None zurückgegeben.
+        """
+        params = request.get("params")
+        msg_id = request.get("id")
+
+        if not isinstance(params, list) or len(params) < 5:
+            return self._protocol.create_error_response(
+                msg_id,
+                -32602,
+                (
+                    "Invalid params: Expected worker_name, job_id, "
+                    "extranonce2, ntime, nonce"
+                ),
+            )
+
+        worker_name, job_id, extranonce2, ntime, nonce = params[:5]
+
+        if not all(
+            isinstance(value, str)
+            for value in (worker_name, job_id, extranonce2, ntime, nonce)
+        ):
+            return self._protocol.create_error_response(
+                msg_id,
+                -32602,
+                "Invalid params: All mining.submit parameters must be strings",
+            )
+
+        if not session.is_authorized:
+            return self._protocol.create_error_response(
+                msg_id,
+                24,
+                "Unauthorized worker",
+            )
+
+        if worker_name != session.worker_name:
+            return self._protocol.create_error_response(
+                msg_id,
+                24,
+                "Worker name does not match authorized session",
+            )
+
+        if job_id not in self._jobs:
+            logger.warning(
+                "Share mit unbekannter Job-ID %s von Worker %s abgewiesen.",
+                job_id,
+                worker_name,
+            )
+            return self._protocol.create_error_response(
+                msg_id,
+                21,
+                "Job not found",
+            )
+
+        return None
+
     async def _send_response(
         self,
         writer: asyncio.StreamWriter,
@@ -201,12 +264,23 @@ class StratumServer:
                     continue
 
                 method = request.get("method")
+
                 if method == "mining.notify":
                     logger.warning(
                         "Miner %s hat eine Server-Notification "
                         "als Request gesendet.",
                         session_id,
                     )
+
+                if method == "mining.submit":
+                    rejection = self._validate_submit_request(session, request)
+                    if rejection is not None:
+                        await self._send_response(
+                            writer,
+                            rejection,
+                            session_id,
+                        )
+                        continue
 
                 response = self._protocol.handle_request(session, request)
                 await self._send_response(writer, response, session_id)
@@ -223,7 +297,8 @@ class StratumServer:
 
                 elif method == "mining.submit":
                     logger.info(
-                        "Share von Miner %s empfangen.",
+                        "Share-Anfrage von Worker %s empfangen; "
+                        "kryptografische Validierung steht noch aus.",
                         session.worker_name or session_id,
                     )
 

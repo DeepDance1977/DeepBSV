@@ -1,442 +1,154 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
 
 
-class CoinbaseError(ValueError):
-    """Fehler beim Parsen oder Erzeugen einer Coinbase-Transaktion."""
+def double_sha256(data: bytes) -> bytes:
+    """Berechnet SHA256(SHA256(data))."""
+
+    return hashlib.sha256(
+        hashlib.sha256(data).digest()
+    ).digest()
 
 
-@dataclass(frozen=True, slots=True)
-class CoinbaseParts:
-    """
-    Zerlegte Coinbase-Transaktion für Stratum V1.
-
-    prefix:
-        Teil der vollständigen Coinbase-Transaktion bis unmittelbar
-        vor dem Extranonce.
-
-    suffix:
-        Teil der vollständigen Coinbase-Transaktion unmittelbar
-        nach dem Extranonce.
-
-    script_sig_length:
-        Länge der ursprünglichen Coinbase-scriptSig.
-
-    extranonce_offset:
-        Position innerhalb der scriptSig, an der der Extranonce
-        eingefügt wird.
-    """
-
-    prefix: bytes
-    suffix: bytes
-    script_sig_length: int
-    extranonce_offset: int
-
-
-def _read_compact_size(
-    data: bytes,
-    offset: int,
-) -> tuple[int, int]:
-    """Liest einen Bitcoin CompactSize-Wert."""
-
-    if offset < 0 or offset >= len(data):
-        raise CoinbaseError(
-            "CompactSize-Wert fehlt",
-        )
-
-    first = data[offset]
-
-    if first < 253:
-        return first, offset + 1
-
-    if first == 253:
-        end = offset + 3
-
-        if end > len(data):
-            raise CoinbaseError(
-                "CompactSize-Wert ist abgeschnitten",
-            )
-
-        value = int.from_bytes(
-            data[offset + 1:end],
-            byteorder="little",
-        )
-
-        if value < 253:
-            raise CoinbaseError(
-                "CompactSize-Wert ist nicht minimal codiert",
-            )
-
-        return value, end
-
-    if first == 254:
-        end = offset + 5
-
-        if end > len(data):
-            raise CoinbaseError(
-                "CompactSize-Wert ist abgeschnitten",
-            )
-
-        value = int.from_bytes(
-            data[offset + 1:end],
-            byteorder="little",
-        )
-
-        if value <= 0xFFFF:
-            raise CoinbaseError(
-                "CompactSize-Wert ist nicht minimal codiert",
-            )
-
-        return value, end
-
-    end = offset + 9
-
-    if end > len(data):
-        raise CoinbaseError(
-            "CompactSize-Wert ist abgeschnitten",
-        )
-
-    value = int.from_bytes(
-        data[offset + 1:end],
-        byteorder="little",
-    )
-
-    if value <= 0xFFFFFFFF:
-        raise CoinbaseError(
-            "CompactSize-Wert ist nicht minimal codiert",
-        )
-
-    return value, end
-
-
-def _encode_compact_size(
-    value: int,
-) -> bytes:
-    """Kodiert einen Bitcoin CompactSize-Wert."""
-
-    if value < 0:
-        raise CoinbaseError(
-            "CompactSize-Wert darf nicht negativ sein",
-        )
-
-    if value < 253:
-        return bytes([value])
-
-    if value <= 0xFFFF:
-        return (
-            b"\xfd"
-            + value.to_bytes(
-                2,
-                byteorder="little",
-            )
-        )
-
-    if value <= 0xFFFFFFFF:
-        return (
-            b"\xfe"
-            + value.to_bytes(
-                4,
-                byteorder="little",
-            )
-        )
-
-    if value <= 0xFFFFFFFFFFFFFFFF:
-        return (
-            b"\xff"
-            + value.to_bytes(
-                8,
-                byteorder="little",
-            )
-        )
-
-    raise CoinbaseError(
-        "CompactSize-Wert ist zu groß",
-    )
-
-
-def _read_script_push_end(
-    script_sig: bytes,
-) -> int:
-    """
-    Ermittelt das Ende des ersten Pushes der Coinbase-scriptSig.
-
-    Bei einem gültigen modernen BSV-Block beginnt die Coinbase-scriptSig
-    mit dem per BIP34 codierten Block-Height-Push. Der Extranonce wird
-    unmittelbar danach eingefügt.
-    """
-
-    if not script_sig:
-        raise CoinbaseError(
-            "Coinbase-scriptSig ist leer",
-        )
-
-    opcode = script_sig[0]
-
-    if opcode == 0:
-        return 1
-
-    if 1 <= opcode <= 75:
-        end = 1 + opcode
-
-        if end > len(script_sig):
-            raise CoinbaseError(
-                "Erster scriptSig-Push ist abgeschnitten",
-            )
-
-        return end
-
-    if opcode == 76:
-        if len(script_sig) < 2:
-            raise CoinbaseError(
-                "OP_PUSHDATA1 ist abgeschnitten",
-            )
-
-        length = script_sig[1]
-        end = 2 + length
-
-        if end > len(script_sig):
-            raise CoinbaseError(
-                "OP_PUSHDATA1-Daten sind abgeschnitten",
-            )
-
-        return end
-
-    if opcode == 77:
-        if len(script_sig) < 3:
-            raise CoinbaseError(
-                "OP_PUSHDATA2 ist abgeschnitten",
-            )
-
-        length = int.from_bytes(
-            script_sig[1:3],
-            byteorder="little",
-        )
-
-        end = 3 + length
-
-        if end > len(script_sig):
-            raise CoinbaseError(
-                "OP_PUSHDATA2-Daten sind abgeschnitten",
-            )
-
-        return end
-
-    if opcode == 78:
-        if len(script_sig) < 5:
-            raise CoinbaseError(
-                "OP_PUSHDATA4 ist abgeschnitten",
-            )
-
-        length = int.from_bytes(
-            script_sig[1:5],
-            byteorder="little",
-        )
-
-        end = 5 + length
-
-        if end > len(script_sig):
-            raise CoinbaseError(
-                "OP_PUSHDATA4-Daten sind abgeschnitten",
-            )
-
-        return end
-
-    raise CoinbaseError(
-        "Coinbase-scriptSig beginnt nicht mit einem Daten-Push",
-    )
-
-
-def split_coinbase(
+def insert_extranonce(
     coinbase_hex: str,
-) -> CoinbaseParts:
+    extranonce1_hex: str,
+    extranonce2_hex: str,
+) -> bytes:
     """
-    Zerlegt eine vollständige Coinbase-Transaktion.
+    Fügt Extranonce1 und Extranonce2 in eine vorhandene Coinbase ein.
 
-    Der Extranonce wird unmittelbar hinter dem ersten Push der
-    Coinbase-scriptSig eingefügt. Dieser erste Push enthält bei
-    BIP34-kompatiblen Blöcken die Blockhöhe.
+    Die Coinbase wird als vollständige Transaktion erwartet. Die
+    Extranonces werden an der Stelle des ScriptSig-Platzhalters eingefügt.
+    Für DeepBSV wird dafür ein eindeutiger Marker verwendet.
 
-    Die zurückgegebenen prefix- und suffix-Bytes können anschließend
-    mit build_coinbase() wieder zu einer vollständigen Coinbase-
-    Transaktion zusammengesetzt werden.
+    Args:
+        coinbase_hex:
+            Hex-kodierte Coinbase-Transaktion.
+        extranonce1_hex:
+            Hex-kodierte Extranonce1.
+        extranonce2_hex:
+            Hex-kodierte Extranonce2.
+
+    Returns:
+        Die vollständig zusammengesetzte Coinbase als Bytes.
+
+    Raises:
+        ValueError:
+            Wenn die Eingaben kein gültiges Hex enthalten oder der
+            Extranonce-Marker nicht gefunden wird.
     """
 
     try:
         coinbase = bytes.fromhex(coinbase_hex)
+        extranonce1 = bytes.fromhex(extranonce1_hex)
+        extranonce2 = bytes.fromhex(extranonce2_hex)
     except ValueError as exc:
-        raise CoinbaseError(
-            "Coinbase enthält ungültiges Hex",
+        raise ValueError(
+            "Coinbase oder Extranonce enthält ungültiges Hex",
         ) from exc
 
-    if len(coinbase) < 4:
-        raise CoinbaseError(
-            "Coinbase enthält keine vollständige Version",
+    marker = b"\xde\xad\xbe\xef"
+
+    marker_position = coinbase.find(marker)
+
+    if marker_position < 0:
+        raise ValueError(
+            "Extranonce-Marker wurde in der Coinbase nicht gefunden",
         )
 
-    offset = 4
-
-    input_count, offset = _read_compact_size(
-        coinbase,
-        offset,
+    return (
+        coinbase[:marker_position]
+        + extranonce1
+        + extranonce2
+        + coinbase[
+            marker_position + len(marker):
+        ]
     )
 
-    if input_count != 1:
-        raise CoinbaseError(
-            "Eine Coinbase-Transaktion muss genau einen Input besitzen",
+
+def calculate_coinbase_hash(
+    coinbase: bytes,
+) -> bytes:
+    """Berechnet den Double-SHA256-Hash der Coinbase."""
+
+    if not coinbase:
+        raise ValueError(
+            "Coinbase darf nicht leer sein",
         )
 
-    if offset + 36 > len(coinbase):
-        raise CoinbaseError(
-            "Coinbase-Input ist abgeschnitten",
+    return double_sha256(coinbase)
+
+
+def calculate_merkle_root(
+    coinbase_hash: bytes,
+    merkle_proof: list[str] | tuple[str, ...],
+) -> bytes:
+    """
+    Berechnet die Merkle-Root aus Coinbase-Hash und BSV-Merkle-Proof.
+
+    Die Hashes des BSV-Merkle-Proofs werden in der von der Node
+    gelieferten Byte-Reihenfolge verarbeitet.
+    """
+
+    if len(coinbase_hash) != 32:
+        raise ValueError(
+            "Coinbase-Hash muss genau 32 Bytes enthalten",
         )
 
-    previous_output = coinbase[
-        offset:offset + 36
-    ]
+    current_hash = coinbase_hash
 
-    if previous_output != b"\x00" * 36:
-        raise CoinbaseError(
-            "Coinbase-Input verwendet keinen Null-Outpoint",
+    for branch_hex in merkle_proof:
+        try:
+            branch = bytes.fromhex(branch_hex)
+        except ValueError as exc:
+            raise ValueError(
+                "Merkle-Proof enthält ungültiges Hex",
+            ) from exc
+
+        if len(branch) != 32:
+            raise ValueError(
+                "Jeder Merkle-Proof-Hash muss genau 32 Bytes enthalten",
+            )
+
+        current_hash = double_sha256(
+            current_hash + branch,
         )
 
-    offset += 36
-
-    script_length_offset = offset
-
-    script_length, offset = _read_compact_size(
-        coinbase,
-        offset,
-    )
-
-    script_start = offset
-    script_end = script_start + script_length
-
-    if script_end > len(coinbase):
-        raise CoinbaseError(
-            "Coinbase-scriptSig ist abgeschnitten",
-        )
-
-    if not 2 <= script_length <= 100:
-        raise CoinbaseError(
-            "Coinbase-scriptSig muss zwischen 2 und 100 Bytes lang sein",
-        )
-
-    script_sig = coinbase[
-        script_start:script_end
-    ]
-
-    extranonce_offset = _read_script_push_end(
-        script_sig,
-    )
-
-    sequence_start = script_end
-    sequence_end = sequence_start + 4
-
-    if sequence_end > len(coinbase):
-        raise CoinbaseError(
-            "Coinbase-Input enthält keine vollständige Sequence",
-        )
-
-    prefix = (
-        coinbase[:script_start]
-        + script_sig[:extranonce_offset]
-    )
-
-    suffix = (
-        script_sig[extranonce_offset:]
-        + coinbase[sequence_start:]
-    )
-
-    return CoinbaseParts(
-        prefix=prefix,
-        suffix=suffix,
-        script_sig_length=script_length,
-        extranonce_offset=extranonce_offset,
-    )
+    return current_hash
 
 
 def build_coinbase(
-    parts: CoinbaseParts,
-    extranonce: bytes,
+    coinbase_hex: str,
+    extranonce1_hex: str,
+    extranonce2_hex: str,
 ) -> bytes:
     """
-    Baut aus Coinbase-Prefix, Extranonce und Coinbase-Suffix
-    eine vollständige Coinbase-Transaktion.
+    Erstellt die vollständige Coinbase für einen Stratum-Job.
 
-    Die Länge der Coinbase-scriptSig wird automatisch angepasst.
+    Die Funktion setzt Extranonce1 und Extranonce2 in die vom
+    DeepBSV-Coinbase-Format vorgesehene Markerposition ein.
     """
 
-    if not extranonce:
-        raise CoinbaseError(
-            "Extranonce darf nicht leer sein",
-        )
-
-    original_prefix_length = len(parts.prefix)
-
-    script_length_offset = (
-        original_prefix_length
-        - parts.extranonce_offset
-    )
-
-    if script_length_offset < 4 + 1 + 36 + 1:
-        raise CoinbaseError(
-            "Ungültige Coinbase-Prefix-Struktur",
-        )
-
-    new_script_length = (
-        parts.script_sig_length
-        + len(extranonce)
-    )
-
-    if not 2 <= new_script_length <= 100:
-        raise CoinbaseError(
-            "Coinbase-scriptSig muss zwischen 2 und 100 Bytes lang sein",
-        )
-
-    version_and_input = parts.prefix[
-        :script_length_offset
-    ]
-
-    script_prefix = parts.prefix[
-        script_length_offset:
-    ]
-
-    return (
-        version_and_input
-        + _encode_compact_size(
-            new_script_length,
-        )
-        + script_prefix
-        + extranonce
-        + parts.suffix
+    return insert_extranonce(
+        coinbase_hex=coinbase_hex,
+        extranonce1_hex=extranonce1_hex,
+        extranonce2_hex=extranonce2_hex,
     )
 
 
-def coinbase_txid(
+def build_merkle_root(
     coinbase: bytes,
+    merkle_proof: list[str] | tuple[str, ...],
 ) -> bytes:
-    """
-    Berechnet die TXID einer Coinbase-Transaktion.
+    """Erstellt die Merkle-Root direkt aus der vollständigen Coinbase."""
 
-    Die Rückgabe erfolgt in der internen Bitcoin-Byte-Reihenfolge.
-    """
-
-    first_hash = hashlib.sha256(
+    coinbase_hash = calculate_coinbase_hash(
         coinbase,
-    ).digest()
+    )
 
-    return hashlib.sha256(
-        first_hash,
-    ).digest()
-
-
-def coinbase_txid_hex(
-    coinbase: bytes,
-) -> str:
-    """Berechnet die Coinbase-TXID und gibt sie als Hex zurück."""
-
-    return coinbase_txid(
-        coinbase,
-    ).hex()
+    return calculate_merkle_root(
+        coinbase_hash=coinbase_hash,
+        merkle_proof=merkle_proof,
+    )

@@ -52,15 +52,21 @@ def test_split_coinbase_and_rebuild() -> None:
     assert rebuilt != original
     assert len(rebuilt) == len(original) + 8
 
-    assert rebuilt.startswith(
-        bytes.fromhex(
-            "02000000010000000000000000000000000000000000000000000000000000000000000000"
-            "ffffffff"
-            "0d"
-            "03878b1300"
-            "0102030405060708"
-        )
+    expected_prefix = bytes.fromhex(
+        "02000000010000000000000000000000000000000000000000000000000000000000000000"
+        "ffffffff"
+        "0d"
+        "03878b13"
+        "0102030405060708"
     )
+
+    assert rebuilt.startswith(
+        expected_prefix,
+    )
+
+    assert rebuilt[
+        len(expected_prefix)
+    ] == 0x00
 
 
 def test_coinbase_hash_is_32_bytes() -> None:

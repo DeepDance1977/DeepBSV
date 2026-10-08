@@ -1,0 +1,121 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(slots=True, frozen=True)
+class CoinbaseParts:
+    """Die in Stratum V1 aufgeteilte Coinbase-Transaktion."""
+
+    coinbase1: str
+    coinbase2: str
+    extranonce1_size: int
+    extranonce2_size: int
+
+
+def split_coinbase(
+    coinbase_hex: str,
+    extranonce1_size: int = 4,
+    extranonce2_size: int = 4,
+) -> CoinbaseParts:
+    """
+    Teilt eine Coinbase-Transaktion für Stratum V1 auf.
+
+    Der Extranonce-Bereich wird vor der Ausgabe nicht verändert.
+    DeepBSV verwendet einen definierten Platzhalter, der durch
+    extranonce1 und extranonce2 ersetzt wird.
+    """
+
+    if not coinbase_hex:
+        raise ValueError(
+            "coinbase darf nicht leer sein",
+        )
+
+    if len(coinbase_hex) % 2 != 0:
+        raise ValueError(
+            "coinbase muss eine gerade Anzahl an Hexzeichen enthalten",
+        )
+
+    try:
+        coinbase = bytes.fromhex(
+            coinbase_hex,
+        )
+    except ValueError as exc:
+        raise ValueError(
+            "coinbase enthält ungültiges Hex",
+        ) from exc
+
+    if extranonce1_size <= 0:
+        raise ValueError(
+            "extranonce1_size muss größer als 0 sein",
+        )
+
+    if extranonce2_size <= 0:
+        raise ValueError(
+            "extranonce2_size muss größer als 0 sein",
+        )
+
+    marker = b"DEEPBSVEXTRANONCE"
+
+    marker_position = coinbase.find(marker)
+
+    if marker_position < 0:
+        raise ValueError(
+            "Kein DeepBSV-Extranonce-Platzhalter in der Coinbase gefunden",
+        )
+
+    placeholder_size = extranonce1_size + extranonce2_size
+
+    if len(marker) != placeholder_size:
+        raise ValueError(
+            "Extranonce-Platzhaltergröße stimmt nicht mit "
+            "extranonce1_size und extranonce2_size überein",
+        )
+
+    coinbase1 = coinbase[
+        :marker_position
+    ].hex()
+
+    coinbase2 = coinbase[
+        marker_position + len(marker):
+    ].hex()
+
+    return CoinbaseParts(
+        coinbase1=coinbase1,
+        coinbase2=coinbase2,
+        extranonce1_size=extranonce1_size,
+        extranonce2_size=extranonce2_size,
+    )
+
+
+def build_coinbase(
+    parts: CoinbaseParts,
+    extranonce1: str,
+    extranonce2: str,
+) -> str:
+    """Setzt Extranonce1 und Extranonce2 in die Coinbase ein."""
+
+    if len(extranonce1) != parts.extranonce1_size * 2:
+        raise ValueError(
+            "extranonce1 hat eine ungültige Länge",
+        )
+
+    if len(extranonce2) != parts.extranonce2_size * 2:
+        raise ValueError(
+            "extranonce2 hat eine ungültige Länge",
+        )
+
+    try:
+        bytes.fromhex(extranonce1)
+        bytes.fromhex(extranonce2)
+    except ValueError as exc:
+        raise ValueError(
+            "Extranonce enthält ungültiges Hex",
+        ) from exc
+
+    return (
+        parts.coinbase1
+        + extranonce1
+        + extranonce2
+        + parts.coinbase2
+    )

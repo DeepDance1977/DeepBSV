@@ -46,6 +46,7 @@ async def test_broadcast_job_sends_notify(engine: MiningEngine) -> None:
         prev_block_hash="0000000000000000000000000000000000000000000000000000000000000000",
     )
     job = engine.create_job_from_template(template)
+
     broadcast = AsyncMock(return_value=2)
     engine.stratum_server.broadcast_notification = broadcast
 

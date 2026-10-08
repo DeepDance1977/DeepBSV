@@ -1,4 +1,3 @@
-```python
 from __future__ import annotations
 
 import logging
@@ -171,11 +170,9 @@ class BSVNodeRPCClient:
         """
         Holt einen aktuellen Bitcoin-SV Mining Candidate.
 
-        BSV definiert getminingcandidate als Teil des
-        Get-Mining-Candidate-Verfahrens.
-
-        provide_coinbase=True ist für DeepBSV erforderlich,
-        weil wir die Coinbase für Stratum V1 aufteilen müssen.
+        provide_coinbase=True ist erforderlich,
+        weil DeepBSV die Coinbase für Stratum V1
+        aufteilen muss.
         """
 
         result = await self._call(
@@ -186,8 +183,7 @@ class BSVNodeRPCClient:
         if not isinstance(result, dict):
             raise BSVNodeRPCError(
                 -32600,
-                "Ungültiges Antwortformat für "
-                "getminingcandidate",
+                "Ungültiges Antwortformat für getminingcandidate",
             )
 
         required_fields = (
@@ -223,55 +219,37 @@ class BSVNodeRPCClient:
                     "Mining Candidate enthält keine Coinbase",
                 )
 
-        if not isinstance(
-            result.get("id"),
-            str,
-        ):
+        if not isinstance(result.get("id"), str):
             raise BSVNodeRPCError(
                 -32600,
                 "Mining Candidate ID ist ungültig",
             )
 
-        if not isinstance(
-            result.get("prevhash"),
-            str,
-        ):
+        if not isinstance(result.get("prevhash"), str):
             raise BSVNodeRPCError(
                 -32600,
                 "Mining Candidate prevhash ist ungültig",
             )
 
-        if not isinstance(
-            result.get("version"),
-            int,
-        ):
+        if not isinstance(result.get("version"), int):
             raise BSVNodeRPCError(
                 -32600,
                 "Mining Candidate version ist ungültig",
             )
 
-        if not isinstance(
-            result.get("nBits"),
-            str,
-        ):
+        if not isinstance(result.get("nBits"), str):
             raise BSVNodeRPCError(
                 -32600,
                 "Mining Candidate nBits ist ungültig",
             )
 
-        if not isinstance(
-            result.get("time"),
-            int,
-        ):
+        if not isinstance(result.get("time"), int):
             raise BSVNodeRPCError(
                 -32600,
                 "Mining Candidate time ist ungültig",
             )
 
-        if not isinstance(
-            result.get("height"),
-            int,
-        ):
+        if not isinstance(result.get("height"), int):
             raise BSVNodeRPCError(
                 -32600,
                 "Mining Candidate height ist ungültig",
@@ -279,10 +257,7 @@ class BSVNodeRPCClient:
 
         merkle_proof = result.get("merkleProof")
 
-        if not isinstance(
-            merkle_proof,
-            list,
-        ):
+        if not isinstance(merkle_proof, list):
             raise BSVNodeRPCError(
                 -32600,
                 "Mining Candidate merkleProof ist ungültig",
@@ -308,15 +283,7 @@ class BSVNodeRPCClient:
         time_value: int | None = None,
         version: int | None = None,
     ) -> Any:
-        """
-        Reicht eine gefundene Mining-Lösung bei BSV ein.
-
-        Der korrekte BSV-RPC ist:
-
-            submitminingsolution
-
-        Der Candidate wird über seine ID identifiziert.
-        """
+        """Reicht eine gefundene Mining-Lösung bei BSV ein."""
 
         if not candidate_id:
             raise ValueError(
@@ -347,17 +314,15 @@ class BSVNodeRPCClient:
         if version is not None:
             if not 0 <= version <= 0xFFFFFFFF:
                 raise ValueError(
-                    "version muss zwischen 0 und 0xffffffff liegen",
+                    "version muss zwischen 0 und 0xFFFFFFFF liegen",
                 )
 
             solution["version"] = version
 
-        result = await self._call(
+        return await self._call(
             "submitminingsolution",
             [solution],
         )
-
-        return result
 
     async def ping(self) -> bool:
         """Prüft, ob die BSV-Node erreichbar ist."""
@@ -368,27 +333,3 @@ class BSVNodeRPCClient:
             return False
 
         return True
-```
-
-### Warum genau diese Änderung?
-
-Die offizielle BSV-GMC-Spezifikation beschreibt `getminingcandidate` und `submitminingsolution` als zusammengehöriges Verfahren. Der Candidate enthält unter anderem `id`, `prevHash`, `version`, `nBits`, `time`, `height` und `merkleProof`; die ID wird beim späteren `submitminingsolution` wieder verwendet.
-
-**Wir ändern jetzt bewusst noch nichts an `protocol.py`, `server.py`, API oder Dashboard.**
-
-Das ist unser Kontrollpunkt.
-
-### Danach
-
-Wenn du diese **eine Datei** in GitHub ersetzt und committest, schick mir einfach **„fertig“**.
-
-Dann prüfe ich den **tatsächlichen GitHub-Stand erneut**, insbesondere:
-
-* `rpc/client.py`
-* alle Imports darauf
-* bestehende Tests
-* `app.py`
-* `protocol.py`
-* `server.py`
-
-**Erst wenn Schritt 1 sauber ist, gehen wir zu Schritt 2: Candidate/Job-Datenmodell.**

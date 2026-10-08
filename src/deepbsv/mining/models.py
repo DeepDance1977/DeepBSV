@@ -10,6 +10,7 @@ class MiningCandidate:
     candidate_id: str
     prevhash: str
     coinbase: str
+    coinbase_value: int
     version: int
     nbits: str
     timestamp: int
@@ -21,9 +22,12 @@ class MiningCandidate:
         cls,
         data: dict[str, object],
     ) -> MiningCandidate:
+        """Erstellt einen MiningCandidate aus einer BSV-RPC-Antwort."""
+
         candidate_id = data.get("id")
         prevhash = data.get("prevhash")
         coinbase = data.get("coinbase")
+        coinbase_value = data.get("coinbaseValue")
         version = data.get("version")
         nbits = data.get("nBits")
         timestamp = data.get("time")
@@ -43,6 +47,16 @@ class MiningCandidate:
         if not isinstance(coinbase, str) or not coinbase:
             raise ValueError(
                 "coinbase fehlt oder ist ungültig",
+            )
+
+        if not isinstance(coinbase_value, int):
+            raise ValueError(
+                "coinbaseValue fehlt oder ist ungültig",
+            )
+
+        if coinbase_value < 0:
+            raise ValueError(
+                "coinbaseValue darf nicht negativ sein",
             )
 
         if not isinstance(version, int):
@@ -82,6 +96,7 @@ class MiningCandidate:
             candidate_id=candidate_id,
             prevhash=prevhash,
             coinbase=coinbase,
+            coinbase_value=coinbase_value,
             version=version,
             nbits=nbits,
             timestamp=timestamp,

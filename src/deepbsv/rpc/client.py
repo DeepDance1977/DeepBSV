@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from typing import Any
 
@@ -7,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class BSVNodeRPCError(Exception):
-    """Exception für RPC-Fehler der BSV Node."""
+    """Fehler bei der Kommunikation mit der Bitcoin-SV-Node."""
 
     def __init__(self, code: int, message: str) -> None:
         super().__init__(message)
@@ -16,14 +18,14 @@ class BSVNodeRPCError(Exception):
 
 
 class BSVNodeRPCClient:
-    """Async Client für die JSON-RPC Kommunikation mit einer BSV Node."""
+    """Asynchroner JSON-RPC-Client für eine Bitcoin-SV-Node."""
 
     def __init__(
         self,
         url: str = "http://127.0.0.1:8332",
         rpc_user: str = "user",
         rpc_password: str = "password",
-        timeout: float = 10.0,
+        timeout: float = 15.0,
     ) -> None:
         self.url = url
         self.auth = (rpc_user, rpc_password)
@@ -44,95 +46,204 @@ class BSVNodeRPCClient:
             "params": params or [],
         }
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
+        try:
+            async with httpx.AsyncClient(
+                timeout=self.timeout,
+                auth=self.auth,
+            ) as client:
                 response = await client.post(
                     self.url,
                     json=payload,
-                    auth=self.auth,
                 )
                 response.raise_for_status()
-            except httpx.HTTPError as e:
-                logger.error(
-                    "HTTP-Fehler bei RPC-Aufruf %s: %s",
-                    method,
-                    e,
+
+        except httpx.HTTPError as exc:
+            logger.error(
+                "HTTP-Fehler bei RPC-Aufruf %s: %s",
+                method,
+                exc,
+            )
+
+            raise BSVNodeRPCError(
+                -32603,
+                f"HTTP-Fehler bei {method}: {exc}",
+            ) from exc
+
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise BSVNodeRPCError(
+                -32700,
+                f"Ungültige JSON-RPC-Antwort bei {method}",
+            ) from exc
+
+        if not isinstance(data, dict):
+            raise BSVNodeRPCError(
+                -32603,
+                f"Ungültiges RPC-Antwortformat bei {method}",
+            )
+
+        error = data.get("error")
+
+        if error is not None:
+            if isinstance(error, dict):
+                code = int(error.get("code", -1))
+                message = str(
+                    error.get(
+                        "message",
+                        "Unbekannter RPC-Fehler",
+                    )
                 )
-                raise BSVNodeRPCError(
-                    -32603,
-                    f"HTTP Error: {e!s}",
-                ) from e
+            else:
+                code = -1
+                message = str(error)
 
-            try:
-                data = response.json()
-            except ValueError as e:
-                logger.error(
-                    "Ungültige JSON-Antwort bei RPC-Aufruf %s",
-                    method,
-                )
-                raise BSVNodeRPCError(
-                    -32700,
-                    "Ungültige JSON-RPC-Antwort",
-                ) from e
+            raise BSVNodeRPCError(
+                code,
+                message,
+            )
 
-            if data.get("error") is not None:
-                err = data["error"]
-
-                raise BSVNodeRPCError(
-                    err.get("code", -1),
-                    err.get("message", "Unknown RPC error"),
-                )
-
-            return data.get("result")
+        return data.get("result")
 
     async def get_blockchain_info(self) -> dict[str, Any]:
-        """Liest grundlegende Blockchain-Informationen der BSV Node."""
-        result = await self._call("getblockchaininfo")
-
-        if not isinstance(result, dict):
-            raise BSVNodeRPCError(
-                -32600,
-                "Ungültiges Antwortformat für Blockchain-Informationen",
-            )
-
-        return result
-
-    async def get_mining_candidate(self) -> dict[str, Any]:
-        """Ruft einen neuen Mining Candidate ab."""
-        result = await self._call("getminingcandidate")
-
-        if not isinstance(result, dict):
-            raise BSVNodeRPCError(
-                -32600,
-                "Ungültiges Antwortformat für Candidate",
-            )
-
-        return result
-
-    async def submit_mining_candidate(
-        self,
-        candidate_id: str,
-        coinbase_tx_hex: str,
-        header_hex: str,
-    ) -> dict[str, Any]:
-        """Reicht eine gefundene Block-Lösung an die Node ein."""
-        params = [
-            {
-                "id": candidate_id,
-                "coinbase": coinbase_tx_hex,
-                "header": header_hex,
-            }
-        ]
+        """Liest den aktuellen Blockchain-Status."""
 
         result = await self._call(
-            "submitminingcandidate",
-            params,
+            "getblockchaininfo",
         )
 
         if not isinstance(result, dict):
             raise BSVNodeRPCError(
                 -32600,
-                "Ungültiges Antwortformat bei Submit",
+                "Ungültiges Antwortformat von getblockchaininfo",
             )
 
         return result
+
+    async def get_network_info(self) -> dict[str, Any]:
+        """Liest den Netzwerkstatus der BSV-Node."""
+
+        result = await self._call(
+            "getnetworkinfo",
+        )
+
+        if not isinstance(result, dict):
+            raise BSVNodeRPCError(
+                -32600,
+                "Ungültiges Antwortformat von getnetworkinfo",
+            )
+
+        return result
+
+    async def get_block_count(self) -> int:
+        """Liest die aktuelle Blockhöhe."""
+
+        result = await self._call(
+            "getblockcount",
+        )
+
+        if not isinstance(result, int):
+            raise BSVNodeRPCError(
+                -32600,
+                "Ungültiges Antwortformat von getblockcount",
+            )
+
+        return result
+
+    async def get_mining_candidate(
+        self,
+        provide_coinbase: bool = True,
+    ) -> dict[str, Any]:
+        """
+        Holt einen aktuellen BSV Mining Candidate.
+
+        BSV unterstützt getminingcandidate mit einem optionalen
+        Boolean-Parameter. Für DeepBSV benötigen wir die Coinbase,
+        damit wir daraus die Stratum-Coinbase-Komponenten erzeugen
+        können.
+        """
+
+        result = await self._call(
+            "getminingcandidate",
+            [provide_coinbase],
+        )
+
+        if not isinstance(result, dict):
+            raise BSVNodeRPCError(
+                -32600,
+                "Ungültiges Antwortformat von getminingcandidate",
+            )
+
+        required_fields = (
+            "id",
+            "prevhash",
+            "version",
+            "nBits",
+            "time",
+            "height",
+            "merkleProof",
+        )
+
+        missing = [
+            field
+            for field in required_fields
+            if field not in result
+        ]
+
+        if missing:
+            raise BSVNodeRPCError(
+                -32600,
+                "Mining Candidate enthält nicht alle "
+                f"erforderlichen Felder: {', '.join(missing)}",
+            )
+
+        if provide_coinbase and not result.get("coinbase"):
+            raise BSVNodeRPCError(
+                -32600,
+                "Mining Candidate enthält keine Coinbase-Transaktion",
+            )
+
+        return result
+
+    async def submit_mining_solution(
+        self,
+        candidate_id: str,
+        nonce: int,
+        coinbase: str | None = None,
+        time_value: int | None = None,
+        version: int | None = None,
+    ) -> Any:
+        """
+        Reicht eine gefundene Mining-Lösung bei BSV ein.
+
+        Der BSV RPC heißt ausdrücklich submitminingsolution.
+        """
+
+        solution: dict[str, Any] = {
+            "id": candidate_id,
+            "nonce": nonce,
+        }
+
+        if coinbase is not None:
+            solution["coinbase"] = coinbase
+
+        if time_value is not None:
+            solution["time"] = time_value
+
+        if version is not None:
+            solution["version"] = version
+
+        return await self._call(
+            "submitminingsolution",
+            [solution],
+        )
+
+    async def ping(self) -> bool:
+        """Prüft, ob die Node erreichbar ist."""
+
+        try:
+            await self.get_blockchain_info()
+        except BSVNodeRPCError:
+            return False
+
+        return True

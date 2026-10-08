@@ -1,3 +1,4 @@
+
 import logging
 from typing import Any
 
@@ -8,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class MiningJob:
-    """Repräsentiert einen Mining-Job mit exakter Stratum V1 Parameter-Struktur."""
+    """Repräsentiert einen Mining-Job mit Stratum-V1-Notify-Parametern."""
 
     def __init__(self, job_data: dict[str, Any]) -> None:
         self._data = job_data
@@ -22,7 +23,7 @@ class MiningJob:
         return bool(self._data.get("clean_jobs", True))
 
     def to_notify_params(self) -> list[Any]:
-        """Gibt exakt die 9 für mining.notify benötigten Parameter zurück."""
+        """Liefert die neun Parameter für mining.notify."""
         return [
             self.job_id,
             self._data.get("prev_hash", ""),
@@ -43,22 +44,28 @@ class MiningJob:
 
 
 class MiningEngine:
-    """Verwaltet Mining-Jobs und orchestriert die Verteilung an Stratum-Sessions."""
+    """Verwaltet Mining-Jobs und verteilt sie an Stratum-Sessions."""
 
     def __init__(self, stratum_server: StratumServer) -> None:
         self.stratum_server = stratum_server
         self.current_job_id = 0
 
     def create_job_from_template(
-        self, template: BlockTemplate, clean_jobs: bool = True
+        self,
+        template: BlockTemplate,
+        clean_jobs: bool = True,
     ) -> MiningJob:
-        """Erstellt ein Stratum-Job-Objekt aus einem BlockTemplate."""
+        """Erstellt einen Stratum-Job aus einem BlockTemplate."""
         self.current_job_id += 1
         job_id = str(self.current_job_id)
 
         job_data = {
             "job_id": job_id,
-            "prev_hash": getattr(template, "prev_block_hash", getattr(template, "prevhash", "")),
+            "prev_hash": getattr(
+                template,
+                "prev_block_hash",
+                getattr(template, "prevhash", ""),
+            ),
             "coinbase_1": getattr(template, "coinbase_1", ""),
             "coinbase_2": getattr(template, "coinbase_2", ""),
             "merkle_branches": getattr(template, "merkle_branches", []),
@@ -68,32 +75,25 @@ class MiningEngine:
             "clean_jobs": clean_jobs,
         }
 
-        if hasattr(self.stratum_server, "register_job"):
-            self.stratum_server.register_job(job_id, job_data)
-
+        self.stratum_server.register_job(job_id, job_data)
         return MiningJob(job_data)
 
     async def broadcast_job(self, job: MiningJob | dict[str, Any]) -> int:
-        """Sendet den neuen Job via mining.notify an alle aktiven & autorisierten Miner."""
-        if isinstance(job, dict):
-            job_id = job.get("job_id", "")
-        else:
-            job_id = job.job_id
-        
-        sessions = getattr(self.stratum_server, "sessions", {})
-        if not sessions:
+        """Verteilt mining.notify an abonnierte und autorisierte Miner."""
+        mining_job = job if isinstance(job, MiningJob) else MiningJob(job)
+
+        job_id = mining_job.job_id
+        if not job_id:
+            logger.warning("Mining-Job ohne job_id wird nicht verteilt.")
             return 0
 
-        count = 0
-        for session in list(sessions.values()):
-            if (
-                getattr(session, "subscribed", False)
-                and getattr(session, "authorized_worker", None) is not None
-            ):
-                send_resp = getattr(session, "send_response", None)
-                if callable(send_resp):
-                    await send_resp(result=None, error=None, msg_id=None)
-                count += 1
+        self.stratum_server.register_job(job_id, mining_job._data)
 
-        logger.info("Job %s an %d Miner verteilt.", job_id, count)
-        return count
+        sent = await self.stratum_server.broadcast_notification(
+            "mining.notify",
+            mining_job.to_notify_params(),
+            authorized_only=True,
+        )
+
+        logger.info("Job %s an %d Miner verteilt.", job_id, sent)
+        return sent

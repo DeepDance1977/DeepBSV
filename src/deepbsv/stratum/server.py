@@ -55,6 +55,7 @@ class StratumServer:
             self._server = None
 
         self._sessions.clear()
+        self.active_connections = 0
 
         logger.info("StratumServer gestoppt.")
 
@@ -78,9 +79,13 @@ class StratumServer:
     ) -> None:
         """Sendet eine JSON-RPC-Antwort oder Notification an den Miner."""
         writer.write(
-            (json.dumps(response, separators=(",", ":")) + "\n").encode(
-                "utf-8",
-            ),
+            (
+                json.dumps(
+                    response,
+                    separators=(",", ":"),
+                )
+                + "\n"
+            ).encode("utf-8"),
         )
         await writer.drain()
 
@@ -175,11 +180,10 @@ class StratumServer:
                         session.worker_name or session_id,
                     )
 
-        except (
-            ConnectionError,
-            asyncio.CancelledError,
-        ):
+        except ConnectionError:
             pass
+        except asyncio.CancelledError:
+            raise
         except Exception:
             logger.exception(
                 "Unerwarteter Fehler bei Stratum-Client %s.",
@@ -187,7 +191,9 @@ class StratumServer:
             )
         finally:
             self._sessions.pop(session_id, None)
-            self.active_connections -= 1
+
+            if self.active_connections > 0:
+                self.active_connections -= 1
 
             logger.info(
                 "Client-Verbindung getrennt: %s",

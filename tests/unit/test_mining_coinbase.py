@@ -5,6 +5,7 @@ from deepbsv.mining.coinbase import (
     split_coinbase,
 )
 
+
 BSV_EXAMPLE_COINBASE = (
     "02000000"
     "01"
@@ -19,6 +20,7 @@ BSV_EXAMPLE_COINBASE = (
     "2103b8310da7c413106c6ce63814dbcd366c55e8ae39c8c43c1fdaeb76df56e4ff7dac"
     "00000000"
 )
+
 
 BSV_EXAMPLE_MERKLE_PROOF = [
     "497d51f3a933dd6e933cd37a4a5799066086d4ff45dce23f0819c7a6c7174ccb",
@@ -54,9 +56,25 @@ def test_split_coinbase_and_rebuild() -> None:
 
     assert rebuilt.startswith(
         bytes.fromhex(
-            "02000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0d03878b13000102030405060708"
+            "02000000010000000000000000000000000000000000000000000000000000000000000000"
+            "ffffffff"
+            "0d"
+            "03878b1300"
+            "0102030405060708"
         )
     )
+
+    assert rebuilt[
+        len(
+            bytes.fromhex(
+                "02000000010000000000000000000000000000000000000000000000000000000000000000"
+                "ffffffff"
+                "0d"
+                "03878b1300"
+                "0102030405060708"
+            )
+        )
+    ] == 0x00
 
 
 def test_coinbase_hash_is_32_bytes() -> None:

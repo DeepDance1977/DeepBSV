@@ -1,4 +1,3 @@
-```python
 import hashlib
 import logging
 import math
@@ -187,4 +186,3 @@ def validate_share(
 
     is_valid = hash_int <= target
     return is_valid, hash_hex, hash_int
-```

@@ -1,13 +1,14 @@
-
+```python
 import hashlib
 import logging
+import math
 import struct
 
 logger = logging.getLogger(__name__)
 
 MAX_UINT256 = (1 << 256) - 1
 
-# Bitcoin-Difficulty-1-Target; wird als Referenz für Share-Difficulty verwendet.
+# Bitcoin-Difficulty-1-Target; Referenz für die Share-Difficulty.
 DIFF1_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
 
 
@@ -46,14 +47,26 @@ def nbits_to_target(nbits: int) -> int:
 
 
 def difficulty_to_target(difficulty: float) -> int:
-    """Berechnet das Share-Target aus einer positiven Difficulty."""
-    if isinstance(difficulty, bool) or not isinstance(difficulty, (int, float)):
+    """Berechnet das Share-Target ohne Gleitkommadivision."""
+    if isinstance(difficulty, bool) or not isinstance(
+        difficulty, (int, float)
+    ):
         raise TypeError("Difficulty muss eine Zahl sein.")
 
-    if difficulty <= 0:
-        raise ValueError("Difficulty muss größer als null sein.")
+    if isinstance(difficulty, float):
+        if not math.isfinite(difficulty):
+            raise ValueError("Difficulty muss endlich sein.")
 
-    target = int(DIFF1_TARGET / difficulty)
+        if difficulty <= 0:
+            raise ValueError("Difficulty muss größer als null sein.")
+
+        numerator, denominator = difficulty.as_integer_ratio()
+        target = (DIFF1_TARGET * denominator) // numerator
+    else:
+        if difficulty <= 0:
+            raise ValueError("Difficulty muss größer als null sein.")
+
+        target = DIFF1_TARGET // difficulty
 
     if target < 1:
         return 1
@@ -122,6 +135,7 @@ def build_block_header(
     ):
         if not isinstance(value, int) or isinstance(value, bool):
             raise TypeError(f"{name} muss eine Ganzzahl sein.")
+
         if not 0 <= value <= 0xFFFFFFFF:
             raise ValueError(f"{name} liegt außerhalb des 32-Bit-Bereichs.")
 
@@ -133,8 +147,8 @@ def build_block_header(
     if len(prev_hash_bytes) != 32:
         raise ValueError("Der vorherige Block-Hash muss 32 Bytes lang sein.")
 
-    if len(merkle_root) != 32:
-        raise ValueError("Die Merkle-Root muss 32 Bytes lang sein.")
+    if not isinstance(merkle_root, bytes) or len(merkle_root) != 32:
+        raise ValueError("Die Merkle-Root muss genau 32 Bytes lang sein.")
 
     header = (
         struct.pack("<I", version)
@@ -173,3 +187,4 @@ def validate_share(
 
     is_valid = hash_int <= target
     return is_valid, hash_hex, hash_int
+```

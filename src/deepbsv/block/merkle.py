@@ -1,59 +1,113 @@
+from __future__ import annotations
+
 import hashlib
 
 
 def double_sha256(data: bytes) -> bytes:
-    """Berechnet SHA-256(SHA-256(data))."""
-    return hashlib.sha256(hashlib.sha256(data).digest()).digest()
+    """Berechnet SHA256(SHA256(data))."""
+
+    return hashlib.sha256(
+        hashlib.sha256(data).digest()
+    ).digest()
 
 
-def calculate_merkle_root(tx_hashes: list[bytes]) -> bytes:
-    """Berechnet den Merkle Root aus einer Liste von Transaktions-Hashes
-    (in Little-Endian/Internal Byte Order).
+def calculate_merkle_root(
+    coinbase_hash: bytes,
+    merkle_branch: list[bytes],
+) -> bytes:
     """
-    if not tx_hashes:
-        return b"\x00" * 32
+    Berechnet die Merkle Root aus Coinbase-Hash
+    und Merkle Branch.
 
-    current_level = list(tx_hashes)
-
-    while len(current_level) > 1:
-        if len(current_level) % 2 != 0:
-            current_level.append(current_level[-1])
-
-        next_level = []
-
-        for i in range(0, len(current_level), 2):
-            combined = current_level[i] + current_level[i + 1]
-            next_level.append(double_sha256(combined))
-
-        current_level = next_level
-
-    return current_level[0]
-
-
-def build_merkle_branch(tx_hashes: list[bytes]) -> list[bytes]:
-    """Erstellt den Merkle Branch für die Coinbase-Transaktion (Index 0).
-
-    Gibt die Liste der Partner-Hashes zurück, die der Stratum-Miner benötigt,
-    um den Merkle Root zu berechnen.
+    Der BSV getminingcandidate-RPC liefert die
+    Merkle-Proof-Hashes in Little-Endian/Internal
+    Byte Order.
     """
+
+    if len(coinbase_hash) != 32:
+        raise ValueError(
+            "Coinbase-Hash muss exakt 32 Bytes lang sein",
+        )
+
+    current = coinbase_hash
+
+    for branch_hash in merkle_branch:
+        if len(branch_hash) != 32:
+            raise ValueError(
+                "Merkle-Branch-Hash muss exakt 32 Bytes lang sein",
+            )
+
+        current = double_sha256(
+            current + branch_hash,
+        )
+
+    return current
+
+
+def calculate_merkle_root_from_hex(
+    coinbase_hash_hex: str,
+    merkle_branch_hex: list[str],
+) -> str:
+    """
+    Berechnet die Merkle Root aus Hex-Werten und
+    gibt sie als Little-Endian/Internal Hex zurück.
+    """
+
+    coinbase_hash = bytes.fromhex(
+        coinbase_hash_hex,
+    )
+
+    branch = [
+        bytes.fromhex(item)
+        for item in merkle_branch_hex
+    ]
+
+    return calculate_merkle_root(
+        coinbase_hash,
+        branch,
+    ).hex()
+
+
+def build_merkle_branch(
+    tx_hashes: list[bytes],
+) -> list[bytes]:
+    """
+    Baut einen Merkle Branch für die Coinbase-Transaktion
+    an Index 0.
+
+    Diese Funktion ist hauptsächlich für Tests und
+    lokale Berechnungen gedacht.
+    """
+
     if not tx_hashes:
         return []
 
-    branch: list[bytes] = []
     current_level = list(tx_hashes)
+    branch: list[bytes] = []
 
     while len(current_level) > 1:
-        if len(current_level) % 2 != 0:
-            current_level.append(current_level[-1])
+        if len(current_level) % 2:
+            current_level.append(
+                current_level[-1],
+            )
 
-        # Der Partner für Index 0 liegt auf diesem Level immer an Index 1.
-        branch.append(current_level[1])
+        branch.append(
+            current_level[1],
+        )
 
-        next_level = []
+        next_level: list[bytes] = []
 
-        for i in range(0, len(current_level), 2):
-            combined = current_level[i] + current_level[i + 1]
-            next_level.append(double_sha256(combined))
+        for index in range(
+            0,
+            len(current_level),
+            2,
+        ):
+            next_level.append(
+                double_sha256(
+                    current_level[index]
+                    + current_level[index + 1],
+                ),
+            )
 
         current_level = next_level
 

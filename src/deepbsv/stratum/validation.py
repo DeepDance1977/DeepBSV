@@ -164,8 +164,8 @@ def validate_share(
     if not isinstance(target, int) or isinstance(target, bool):
         raise TypeError("Target muss eine Ganzzahl sein.")
 
-    if not 1 <= target <= MAX_UINT256:
-        raise ValueError("Target muss zwischen 1 und 2^256-1 liegen.")
+    if not 0 <= target <= MAX_UINT256:
+        raise ValueError("Target muss zwischen 0 und 2^256-1 liegen.")
 
     block_hash_bytes = double_sha256(header_bytes)
     hash_int = int.from_bytes(block_hash_bytes, byteorder="little")

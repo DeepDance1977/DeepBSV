@@ -1,29 +1,42 @@
+```python
 import httpx
 import pytest
 
 from deepbsv.rpc.client import BSVNodeRPCClient, BSVNodeRPCError
 
 
+def assert_rpc_request(
+    kwargs: dict[str, object],
+    method: str,
+    params: list[object],
+) -> None:
+    payload = kwargs.get("json")
+
+    assert isinstance(payload, dict)
+    assert payload["method"] == method
+    assert payload["params"] == params
+
+
 @pytest.mark.asyncio
 async def test_get_mining_candidate_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    req = httpx.Request(
-        "POST",
-        "http://127.0.0.1:8332",
-    )
+    req = httpx.Request("POST", "http://127.0.0.1:8332")
 
     async def mock_post(
         *_args: object,
-        **_kwargs: object,
+        **kwargs: object,
     ) -> httpx.Response:
+        assert_rpc_request(
+            kwargs,
+            "getminingcandidate",
+            [True],
+        )
+
         fake_payload = {
             "result": {
                 "id": "cand_001",
-                "prevhash": (
-                    "000000000000000000000000000000000000000000000000"
-                    "0000000000000000"
-                ),
+                "prevhash": "00" * 32,
                 "coinbase": (
                     "01000000010000000000000000000000000000000000000000"
                     "0000000000000000000000ffffffff"
@@ -56,13 +69,13 @@ async def test_get_mining_candidate_success(
     )
 
     client = BSVNodeRPCClient()
-
     candidate = await client.get_mining_candidate()
 
     assert candidate["id"] == "cand_001"
-    assert "prevhash" in candidate
-    assert "coinbase" in candidate
+    assert candidate["prevhash"] == "00" * 32
+    assert candidate["coinbase"]
     assert candidate["version"] == 536870912
+    assert candidate["coinbaseValue"] == 5000000000
     assert candidate["nBits"] == "207fffff"
     assert candidate["time"] == 1700000000
     assert candidate["height"] == 100
@@ -73,22 +86,22 @@ async def test_get_mining_candidate_success(
 async def test_get_mining_candidate_without_coinbase(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    req = httpx.Request(
-        "POST",
-        "http://127.0.0.1:8332",
-    )
+    req = httpx.Request("POST", "http://127.0.0.1:8332")
 
     async def mock_post(
         *_args: object,
-        **_kwargs: object,
+        **kwargs: object,
     ) -> httpx.Response:
+        assert_rpc_request(
+            kwargs,
+            "getminingcandidate",
+            [False],
+        )
+
         fake_payload = {
             "result": {
                 "id": "cand_002",
-                "prevhash": (
-                    "000000000000000000000000000000000000000000000000"
-                    "0000000000000000"
-                ),
+                "prevhash": "00" * 32,
                 "version": 536870912,
                 "coinbaseValue": 5000000000,
                 "nBits": "207fffff",
@@ -113,7 +126,6 @@ async def test_get_mining_candidate_without_coinbase(
     )
 
     client = BSVNodeRPCClient()
-
     candidate = await client.get_mining_candidate(
         provide_coinbase=False,
     )
@@ -121,6 +133,7 @@ async def test_get_mining_candidate_without_coinbase(
     assert candidate["id"] == "cand_002"
     assert "coinbase" not in candidate
     assert candidate["version"] == 536870912
+    assert candidate["coinbaseValue"] == 5000000000
     assert candidate["nBits"] == "207fffff"
     assert candidate["time"] == 1700000001
     assert candidate["height"] == 101
@@ -131,15 +144,18 @@ async def test_get_mining_candidate_without_coinbase(
 async def test_rpc_error_handling(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    req = httpx.Request(
-        "POST",
-        "http://127.0.0.1:8332",
-    )
+    req = httpx.Request("POST", "http://127.0.0.1:8332")
 
     async def mock_post(
         *_args: object,
-        **_kwargs: object,
+        **kwargs: object,
     ) -> httpx.Response:
+        assert_rpc_request(
+            kwargs,
+            "getminingcandidate",
+            [True],
+        )
+
         fake_payload = {
             "result": None,
             "error": {
@@ -168,3 +184,4 @@ async def test_rpc_error_handling(
 
     assert exc_info.value.code == -10
     assert "warming up" in exc_info.value.message
+```
